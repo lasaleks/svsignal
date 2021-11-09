@@ -1,0 +1,135 @@
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/streadway/amqp"
+)
+
+var (
+	url        = flag.String("url", "amqp://rabbit:rabbitie@rabbitmq:5672/", "")
+	system_key = flag.String("system-key", "", "")
+	signal_key = flag.String("signal-key", "", "")
+	value      = flag.Float64("value", 0, "")
+	utime      = flag.Int64("utime", time.Now().Local().Unix(), "")
+	offline    = flag.Int("offline", 0, "")
+	typesave   = flag.Int("typesave", 2, "")
+)
+
+type ValueSignal struct {
+	Value    float64 `json:"value"`
+	UTime    int64   `json:"utime"`
+	Offline  byte    `json:"offline"`
+	TypeSave int     `json:"typesave"`
+}
+
+func main() {
+	flag.Parse()
+	if len(*system_key) == 0 {
+		fmt.Println("not found system_key")
+		return
+	}
+	if len(*signal_key) == 0 {
+		fmt.Println("not found signal_key")
+		return
+	}
+
+	val := ValueSignal{
+		Value:    *value,
+		UTime:    *utime,
+		Offline:  byte(*offline),
+		TypeSave: *typesave,
+	}
+
+	rkey := fmt.Sprintf("svsignal.%s.%s", *system_key, *signal_key)
+	jData, _ := json.Marshal(val)
+
+	if err := publish(*url, "svsingal", "topic", rkey, string(jData), false); err != nil {
+		log.Fatalf("%s", err)
+	}
+	log.Printf("published %dB OK", len(jData))
+}
+
+func publish(amqpURI, exchange, exchangeType, routingKey, body string, reliable bool) error {
+
+	// This function dials, connects, declares, publishes, and tears down,
+	// all in one go. In a real service, you probably want to maintain a
+	// long-lived connection as state, and publish against that.
+
+	log.Printf("dialing %q", amqpURI)
+	connection, err := amqp.Dial(amqpURI)
+	if err != nil {
+		return fmt.Errorf("Dial: %s", err)
+	}
+	defer connection.Close()
+
+	log.Printf("got Connection, getting Channel")
+	channel, err := connection.Channel()
+	if err != nil {
+		return fmt.Errorf("Channel: %s", err)
+	}
+
+	log.Printf("got Channel, declaring %q Exchange (%q)", exchangeType, exchange)
+	if err := channel.ExchangeDeclare(
+		exchange,     // name
+		exchangeType, // type
+		false,        // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // noWait
+		nil,          // arguments
+	); err != nil {
+		return fmt.Errorf("Exchange Declare: %s", err)
+	}
+
+	// Reliable publisher confirms require confirm.select support from the
+	// connection.
+	if reliable {
+		log.Printf("enabling publishing confirms.")
+		if err := channel.Confirm(false); err != nil {
+			return fmt.Errorf("Channel could not be put into confirm mode: %s", err)
+		}
+
+		confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+		defer confirmOne(confirms)
+	}
+
+	log.Printf("declared Exchange, publishing %dB body (%q)", len(body), body)
+	if err = channel.Publish(
+		exchange,   // publish to an exchange
+		routingKey, // routing to 0 or more queues
+		false,      // mandatory
+		false,      // immediate
+		amqp.Publishing{
+			Headers:         amqp.Table{},
+			ContentType:     "text/plain",
+			ContentEncoding: "",
+			Body:            []byte(body),
+			DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
+			Priority:        0,              // 0-9
+			// a bunch of application/implementation-specific fields
+		},
+	); err != nil {
+		return fmt.Errorf("Exchange Publish: %s", err)
+	}
+
+	return nil
+}
+
+// One would typically keep a channel of publishings, a sequence number, and a
+// set of unacknowledged sequence numbers and loop until the publishing channel
+// is closed.
+func confirmOne(confirms <-chan amqp.Confirmation) {
+	log.Printf("waiting for confirmation of one publishing")
+
+	if confirmed := <-confirms; confirmed.Ack {
+		log.Printf("confirmed delivery with delivery tag: %d", confirmed.DeliveryTag)
+	} else {
+		log.Printf("failed delivery of delivery tag: %d", confirmed.DeliveryTag)
+	}
+}
