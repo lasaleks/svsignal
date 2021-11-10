@@ -73,9 +73,9 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 
 func (s *SVSignalDB) response_list_signal() {
 
-	for key, data := range s.signals {
+	/*for key, data := range s.signals {
 
-	}
+	}*/
 }
 
 func (s *SVSignalDB) save_value(val *ValueSignal) {
