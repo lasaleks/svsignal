@@ -42,20 +42,20 @@ func TestGetListHttp(t *testing.T) {
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
 
-	hub := newHub()
+	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
 	hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = 0
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
-	go hub.run(&wg, ctx_hub)
+	go hub.run(&wg, ctx_hub)*/
 
 	//---http GetList
 	url := "http://localhost/api/listsignal"
 	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
 
-	http_handler := GetListSignal{hub.CH_REQUEST_HTTP}
+	http_handler := GetListSignal{savesignal.CH_REQUEST_HTTP}
 	http_handler.ServeHTTP(w, req)
 	StatusCode := 200
 	if w.Code != StatusCode {
@@ -66,36 +66,35 @@ func TestGetListHttp(t *testing.T) {
 	body, _ := ioutil.ReadAll(resp.Body)
 
 	bodyStr := string(body)
-
-	list_signal := ResponseListSignal{Groups: []RLS_Groups{
-		{
-			Name:     "InsiteExpert",
-			GroupKey: "IE",
+	list_signal := ResponseListSignal{Groups: map[string]*RLS_Groups{
+		"IE": {
+			Name: "InsiteExpert",
+			// GroupKey: "IE",
 			Signals: []RLS_Signal{
 				{Id: 1, SignalKey: "beacon.1234.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000},
 				{Id: 2, SignalKey: "beacon.1235.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000},
 			},
 		},
-		{
-			Name:     "InsiteExpert BlockCombine",
-			GroupKey: "IEBlock",
-			Signals:  []RLS_Signal{},
+		"IEBlock": {
+			Name: "InsiteExpert BlockCombine",
+			// GroupKey: "IEBlock",
+			Signals: []RLS_Signal{},
 		},
 	}}
-	jData, err := json.Marshal(list_signal)
-	if err != nil {
+	jData, _ := json.Marshal(list_signal)
+	/*if err != nil {
 		// handle error
-	}
+	}*/
 	w.Header().Set("Content-Type", "application/json")
 
-	fmt.Println("response", bodyStr)
-	if bodyStr != string(jData) {
-		t.Errorf("wrong Response: got %+v, expected %+v", bodyStr, string(jData))
+	cmp_str := string(jData)
+	if bodyStr != cmp_str {
+		t.Errorf("wrong Response: got %+v, expected %+v", bodyStr, cmp_str)
 	}
 	//-------
 
 	cancel_db()
-	cancel_hub()
+	// cancel_hub()
 	wg.Wait()
 }
 
@@ -167,19 +166,19 @@ func TestRequestDataT1Http(t *testing.T) {
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
 
-	hub := newHub()
+	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
 	hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = 0
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
-	go hub.run(&wg, ctx_hub)
+	go hub.run(&wg, ctx_hub)*/
 
 	//---http GetList
 	req := httptest.NewRequest("GET", uri, nil)
 	w := httptest.NewRecorder()
 
-	http_handler := RequestSignalData{hub.CH_REQUEST_HTTP}
+	http_handler := RequestSignalData{savesignal.CH_REQUEST_HTTP}
 	http_handler.ServeHTTP(w, req)
 	StatusCode := 200
 	if w.Code != StatusCode {
@@ -191,11 +190,7 @@ func TestRequestDataT1Http(t *testing.T) {
 
 	bodyStr := string(body)
 
-	jData, err := json.Marshal(data_signal)
-	//fmt.Printf("%q\n", jData)
-	if err != nil {
-		// handle error
-	}
+	jData, _ := json.Marshal(data_signal)
 	w.Header().Set("Content-Type", "application/json")
 
 	//fmt.Println("response", bodyStr)
@@ -205,7 +200,7 @@ func TestRequestDataT1Http(t *testing.T) {
 	//-------
 
 	cancel_db()
-	cancel_hub()
+	//cancel_hub()
 	wg.Wait()
 }
 
@@ -280,19 +275,19 @@ func TestRequestDataT2Http(t *testing.T) {
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
 
-	hub := newHub()
+	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
 	hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = 0
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
-	go hub.run(&wg, ctx_hub)
+	go hub.run(&wg, ctx_hub)*/
 
 	//---http GetList
 	req := httptest.NewRequest("GET", uri, nil)
 	w := httptest.NewRecorder()
 
-	http_handler := RequestSignalData{hub.CH_REQUEST_HTTP}
+	http_handler := RequestSignalData{savesignal.CH_REQUEST_HTTP}
 	http_handler.ServeHTTP(w, req)
 	StatusCode := 200
 	if w.Code != StatusCode {
@@ -304,11 +299,7 @@ func TestRequestDataT2Http(t *testing.T) {
 
 	bodyStr := string(body)
 
-	jData, err := json.Marshal(data_signal)
-	//fmt.Printf("%q\n", jData)
-	if err != nil {
-		// handle error
-	}
+	jData, _ := json.Marshal(data_signal)
 	w.Header().Set("Content-Type", "application/json")
 
 	//fmt.Println("response", bodyStr)
@@ -318,6 +309,6 @@ func TestRequestDataT2Http(t *testing.T) {
 	//-------
 
 	cancel_db()
-	cancel_hub()
+	//cancel_hub()
 	wg.Wait()
 }

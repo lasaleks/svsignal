@@ -8,9 +8,10 @@ import (
 )
 
 type HttpSrv struct {
-	Addr   string
-	server *http.Server
-	hub    *Hub
+	Addr     string
+	server   *http.Server
+	hub      *Hub
+	svsignal *SVSignalDB
 }
 
 func (h *HttpSrv) Run(wg *sync.WaitGroup) {
@@ -18,7 +19,7 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 	h.server = &http.Server{Addr: h.Addr, Handler: nil}
 
 	http.Handle("/api/requestdata/", &RequestData{})
-	http.Handle("/api/listsignal/", &GetListSignal{h.hub.CH_REQUEST_HTTP})
+	http.Handle("/api/listsignal/", &GetListSignal{h.svsignal.CH_REQUEST_HTTP})
 
 	log.Printf("Starting Http Server at %s\n", h.Addr)
 	err := h.server.ListenAndServe()

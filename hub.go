@@ -10,21 +10,21 @@ import (
 )
 
 type Hub struct {
-	debug_level        int
-	CH_MSG_AMPQ        chan rabbitmq.MessageAmpq
-	re_rkey            *regexp.Regexp
-	CH_SAVE_VALUE      chan ValueSignal
-	CH_REQUEST_HTTP    chan RequestHttp
-	CH_REQUEST_HTTP_DB chan RequestHttp
+	debug_level   int
+	CH_MSG_AMPQ   chan rabbitmq.MessageAmpq
+	re_rkey       *regexp.Regexp
+	CH_SAVE_VALUE chan ValueSignal
+	//CH_REQUEST_HTTP chan RequestHttp
+	//CH_REQUEST_HTTP_DB chan RequestHttp
 }
 
 func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
 	re_rkey, _ := regexp.Compile(`svsignal.(\w+).(\w+)`)
 	return &Hub{
-		CH_MSG_AMPQ:     make(chan rabbitmq.MessageAmpq, 1),
-		re_rkey:         re_rkey,
-		CH_REQUEST_HTTP: make(chan RequestHttp, 1),
+		CH_MSG_AMPQ: make(chan rabbitmq.MessageAmpq, 1),
+		re_rkey:     re_rkey,
+		//CH_REQUEST_HTTP: make(chan RequestHttp, 1),
 	}
 }
 
@@ -62,11 +62,11 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 			} else {
 				return
 			}
-		case msg := <-h.CH_REQUEST_HTTP:
+			/*case msg := <-h.CH_REQUEST_HTTP:
 			switch msg.type_cmd {
 			case TYPE_CMD_REQUEST_LIST_SIGNAL:
 				h.CH_REQUEST_HTTP_DB <- msg
-			}
+			}*/
 		}
 	}
 }

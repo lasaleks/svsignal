@@ -21,20 +21,6 @@ var (
 	pid_file    = flag.String("pid", "", "path pid file")
 )
 
-func test_connectdb(cfg Config) {
-	// Create the database handle, confirm driver is present
-	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.CONFIG.MYSQL.USER, cfg.CONFIG.MYSQL.PASSWORD, cfg.CONFIG.MYSQL.HOST, cfg.CONFIG.MYSQL.PORT, cfg.CONFIG.MYSQL.DATABASE)
-	//id:password@tcp(your-amazonaws-uri.com:3306)/dbname
-	fmt.Println(uri)
-	db, _ := sql.Open("mysql", uri)
-	defer db.Close()
-
-	// Connect and check the server version
-	var version string
-	db.QueryRow("SELECT VERSION()").Scan(&version)
-	fmt.Println("Connected to:", version)
-}
-
 func main() {
 	fmt.Println("Start svsignal ver:", VERSION)
 
@@ -56,11 +42,11 @@ func main() {
 	var err error
 
 	db, err := sql.Open("mysql", uri)
-	defer db.Close()
 
 	if err != nil {
 		log.Println("Error Open", err)
 	}
+	defer db.Close()
 
 	// See "Important settings" section.
 	db.SetConnMaxLifetime(time.Minute * 3)
@@ -76,7 +62,7 @@ func main() {
 
 	hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
-	hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
+	//hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = cfg.CONFIG.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
@@ -87,7 +73,7 @@ func main() {
 			Name:         "svsingal",
 			ExchangeType: "topic",
 			Keys: []string{
-				fmt.Sprintf("svsignal.*.*.#"),
+				fmt.Sprintln("svsignal.*.*.#"),
 			},
 		},
 	}
@@ -100,6 +86,7 @@ func main() {
 	//---http
 	http := HttpSrv{Addr: cfg.CONFIG.HTTP.Address}
 	http.hub = hub
+	http.svsignal = savesignal
 	wg.Add(1)
 	go http.Run(&wg)
 	//-------

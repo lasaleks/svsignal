@@ -56,10 +56,7 @@ func (a *AVG) is_end_period(utime int64) bool {
 	// целочисленное деление на период используется для выравнивания точки сохранения, для сигналов с одинаковым периодом
 	ptime := utime / int64(a.period)
 	btime := a.begin_utime / int64(a.period)
-	if ptime > btime {
-		return true
-	}
-	return false
+	return ptime > btime
 }
 
 func (a *AVG) set_new_period() {

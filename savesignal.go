@@ -64,18 +64,35 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 			}
 		case msg, ok := <-s.CH_REQUEST_HTTP:
 			if ok {
-				s.response_list_signal()
-				msg.CH_RESP_LIST_SIG <- ResponseListSignal{}
+				msg.CH_RESP_LIST_SIG <- *s.response_list_signal()
 			}
 		}
 	}
 }
 
-func (s *SVSignalDB) response_list_signal() {
+func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
+	lsig := ResponseListSignal{Groups: make(map[string]*RLS_Groups)}
 
-	/*for key, data := range s.signals {
+	for _, group := range s.systems {
+		lsig.Groups[group.system_key] = &RLS_Groups{Name: group.name, Signals: make([]RLS_Signal, 0)}
+	}
 
-	}*/
+	for _, data := range s.signals {
+		_, ok := lsig.Groups[data.system_key]
+		if !ok {
+			lsig.Groups[data.system_key] = &RLS_Groups{}
+		}
+
+		lsig.Groups[data.system_key].Signals = append(lsig.Groups[data.system_key].Signals, RLS_Signal{
+			Id:        data.id,
+			SignalKey: data.signal_key,
+			Name:      data.name,
+			TypeSave:  data.type_save,
+			Period:    data.period,
+			Delta:     data.delta,
+		})
+	}
+	return &lsig
 }
 
 func (s *SVSignalDB) save_value(val *ValueSignal) {
@@ -268,8 +285,7 @@ func load_system(db *sql.DB) (*map[string]svsignal_system, error) {
 	}
 	defer rows.Close()
 
-	var systems map[string]svsignal_system
-	systems = make(map[string]svsignal_system)
+	systems := make(map[string]svsignal_system)
 	for rows.Next() {
 		sys := svsignal_system{}
 		err := rows.Scan(&sys.system_key, &sys.name)
@@ -300,8 +316,7 @@ func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
 	}
 	defer rows.Close()
 
-	var signals map[string]svsignal_signal
-	signals = make(map[string]svsignal_signal)
+	signals := make(map[string]svsignal_signal)
 	for rows.Next() {
 		sig := svsignal_signal{}
 		err := rows.Scan(&sig.id, &sig.system_key, &sig.signal_key, &sig.name, &sig.type_save, &sig.period, &sig.delta)

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 )
 
@@ -11,7 +11,7 @@ const (
 )
 
 type RLS_Signal struct {
-	Id        int     `json:"id"`
+	Id        int64   `json:"id"`
 	SignalKey string  `json:"signalkey"`
 	Name      string  `json:"Name"`
 	TypeSave  int     `json:"typesave"`
@@ -20,13 +20,12 @@ type RLS_Signal struct {
 }
 
 type RLS_Groups struct {
-	Name     string `json:"name"`
-	GroupKey string `json:"groupkey"`
-	Signals  []RLS_Signal
+	Name    string       `json:"name"`
+	Signals []RLS_Signal `json:"signals"`
 }
 
 type ResponseListSignal struct {
-	Groups []RLS_Groups
+	Groups map[string]*RLS_Groups `json:"groups"`
 }
 
 type RequestHttp struct {
@@ -61,14 +60,12 @@ func (g *GetListSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CH_RESP_LIST_SIG: CH_RESPONSE,
 	}
 	response := <-CH_RESPONSE
-	fmt.Println("RESPONSE", response)
-
-	/*jData, err := json.Marshal(result)
+	jData, err := json.Marshal(response)
 	if err != nil {
-		// handle error
-	}*/
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte("Привет"))
+	w.Write(jData)
 }
 
 type ValuesT1 struct {
