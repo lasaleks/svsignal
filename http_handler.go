@@ -10,13 +10,19 @@ const (
 	TYPE_CMD_REQUEST_LIST_SIGNAL
 )
 
+type RLS_Tag struct {
+	Tag   string `json:"tag"`
+	Value string `json:"value"`
+}
+
 type RLS_Signal struct {
-	Id        int64   `json:"id"`
-	SignalKey string  `json:"signalkey"`
-	Name      string  `json:"Name"`
-	TypeSave  int     `json:"typesave"`
-	Period    int     `json:"period"`
-	Delta     float32 `json:"delta"`
+	Id        int64     `json:"id"`
+	SignalKey string    `json:"signalkey"`
+	Name      string    `json:"Name"`
+	TypeSave  int       `json:"typesave"`
+	Period    int       `json:"period"`
+	Delta     float32   `json:"delta"`
+	Tags      []RLS_Tag `json:"tags"`
 }
 
 type RLS_Groups struct {

@@ -25,6 +25,12 @@ func TestCreate(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
 
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
+		AddRow(1, "1", "location", "asdf").
+		AddRow(2, "1", "desc", "asdfqwer")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, "IE", "1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, "IE", "1235.rx", "rx", 1, 60, 10000)
@@ -70,7 +76,7 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func TestSaveType1(t *testing.T) {
+func TestSave1(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
@@ -84,6 +90,9 @@ func TestSaveType1(t *testing.T) {
 		AddRow("Test", "Test")
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(2, "Test", "Test", "-", 1, 60, 10000)
@@ -148,7 +157,7 @@ func TestSaveType1(t *testing.T) {
 	}
 }
 
-func TestSaveType2(t *testing.T) {
+func TestSave2(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
@@ -162,6 +171,9 @@ func TestSaveType2(t *testing.T) {
 		AddRow("Test", "Test")
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, "Test", "Test", "-", 2, 60, 10000)
@@ -240,6 +252,9 @@ func TestSaveType3(t *testing.T) {
 		AddRow("Test", "Test")
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, "Test", "Test", "-", 2, 60, 10000)

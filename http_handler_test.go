@@ -28,6 +28,13 @@ func TestGetListHttp(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
 
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
+		AddRow(1, 1, "location", "pk110 1234").
+		AddRow(2, 1, "desc", "rx/tx 1234").
+		AddRow(1, 2, "location", "pk110 1235").
+		AddRow(2, 2, "desc", "rx/tx 1235")
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
@@ -71,8 +78,15 @@ func TestGetListHttp(t *testing.T) {
 			Name: "InsiteExpert",
 			// GroupKey: "IE",
 			Signals: []RLS_Signal{
-				{Id: 1, SignalKey: "beacon.1234.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000},
-				{Id: 2, SignalKey: "beacon.1235.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000},
+				{Id: 1, SignalKey: "beacon.1234.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000, Tags: []RLS_Tag{
+					{Tag: "location", Value: "pk110 1234"},
+					{Tag: "desc", Value: "rx/tx 1234"},
+				},
+				},
+				{Id: 2, SignalKey: "beacon.1235.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000, Tags: []RLS_Tag{
+					{Tag: "location", Value: "pk110 1235"},
+					{Tag: "desc", Value: "rx/tx 1235"},
+				}},
 			},
 		},
 		"IEBlock": {
@@ -89,7 +103,7 @@ func TestGetListHttp(t *testing.T) {
 
 	cmp_str := string(jData)
 	if bodyStr != cmp_str {
-		t.Errorf("wrong Response: got %+v, expected %+v", bodyStr, cmp_str)
+		t.Errorf("wrong Response: got \n%+v\nexpected \n%+v\n", bodyStr, cmp_str)
 	}
 	//-------
 

@@ -82,7 +82,10 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 		if !ok {
 			lsig.Groups[data.system_key] = &RLS_Groups{}
 		}
-
+		tags := []RLS_Tag{}
+		for _, tag := range *data.tags {
+			tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+		}
 		lsig.Groups[data.system_key].Signals = append(lsig.Groups[data.system_key].Signals, RLS_Signal{
 			Id:        data.id,
 			SignalKey: data.signal_key,
@@ -90,6 +93,7 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 			TypeSave:  data.type_save,
 			Period:    data.period,
 			Delta:     data.delta,
+			Tags:      tags,
 		})
 	}
 	return &lsig
@@ -306,9 +310,15 @@ type svsignal_signal struct {
 	type_save  int
 	period     int
 	delta      float32
+	tags       *[]svsignal_tag
 }
 
 func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
+
+	tags, err := load_signal_tags(db)
+	if err != nil {
+		tags = nil
+	}
 	// Prepare statement for reading data
 	rows, err := db.Query("SELECT id, system_key, signal_key, name, type_save, period, delta FROM svsignal_signal")
 	if err != nil {
@@ -324,7 +334,45 @@ func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
 			fmt.Println(err)
 			continue
 		}
+		if tags != nil {
+			tag, ok := (*tags)[sig.id]
+			if ok {
+				sig.tags = tag
+			}
+		}
 		signals[fmt.Sprintf("%s.%s", sig.system_key, sig.signal_key)] = sig
 	}
 	return &signals, nil
+}
+
+type svsignal_tag struct {
+	id        int64
+	signal_id int64
+	tag       string
+	value     string
+}
+
+func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
+	// Prepare statement for reading data
+	rows, err := db.Query("SELECT id, signal_id, tag, `value` FROM svsignal_tag")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tags := make(map[int64]*[]svsignal_tag)
+	for rows.Next() {
+		tag := svsignal_tag{}
+		err := rows.Scan(&tag.id, &tag.signal_id, &tag.tag, &tag.value)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		_, ok := tags[tag.signal_id]
+		if !ok {
+			tags[tag.signal_id] = &[]svsignal_tag{}
+		}
+		*tags[tag.signal_id] = append(*tags[tag.signal_id], tag)
+	}
+	return &tags, nil
 }
