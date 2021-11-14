@@ -31,8 +31,8 @@ func TestGetListHttp(t *testing.T) {
 	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
 		AddRow(1, 1, "location", "pk110 1234").
 		AddRow(2, 1, "desc", "rx/tx 1234").
-		AddRow(1, 2, "location", "pk110 1235").
-		AddRow(2, 2, "desc", "rx/tx 1235")
+		AddRow(3, 2, "location", "pk110 1235").
+		AddRow(4, 2, "desc", "rx/tx 1235")
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
@@ -122,6 +122,10 @@ func TestRequestDataT1Http(t *testing.T) {
 		SignalName: "rx",
 		TypeSave:   1,
 		Values:     [][4]int64{},
+		Tags: []RLS_Tag{
+			{Tag: "location", Value: "pk110 1234"},
+			{Tag: "desc", Value: "rx/tx 1234"},
+		},
 	}
 
 	var begin_utime int64 = 1636507647
@@ -160,17 +164,24 @@ func TestRequestDataT1Http(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
 
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
+		AddRow(1, 1, "location", "pk110 1234").
+		AddRow(2, 1, "desc", "rx/tx 1234").
+		AddRow(3, 2, "location", "pk110 1235").
+		AddRow(4, 2, "desc", "rx/tx 1235")
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, "IE", "beacon.1234.U", "U", 2, 60, 10000)
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "signal_id", "unixtime", "value", "offline"})
+	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
-		rows.AddRow(value[0], 1, value[1], value[2], value[3])
+		rows.AddRow(value[0], value[1], value[2], value[3])
 	}
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_ivalues$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_ivalue WHERE signal_id=1 and utime >= 1636507647 and utime <=1636508647$").WillReturnRows(rows)
 	//-------
 
 	// init
@@ -201,12 +212,9 @@ func TestRequestDataT1Http(t *testing.T) {
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
-
 	bodyStr := string(body)
 
 	jData, _ := json.Marshal(data_signal)
-	w.Header().Set("Content-Type", "application/json")
-
 	//fmt.Println("response", bodyStr)
 	if bodyStr != string(jData) {
 		t.Errorf("wrong Response: got %+v, expected %+v", bodyStr, string(jData))
@@ -219,17 +227,19 @@ func TestRequestDataT1Http(t *testing.T) {
 }
 
 func TestRequestDataT2Http(t *testing.T) {
-	uri := "http://localhost:8080/api/signal/getdata?groupkey=IE&signalkey=beacon.1234.U&begin=1636507647&end=1636508647"
+	var begin int64 = 1636507647
+	var end int64 = 1636508647
+	uri := fmt.Sprintf("http://localhost:8080/api/signal/getdata?groupkey=IE&signalkey=beacon.1234.U&begin=%d&end=%d", begin, end)
 
 	data_signal := ResponseDataSignalT2{
 		GroupKey:   "IE",
 		GroupName:  "InsiteExpert",
 		SignalKey:  "beacon.1234.U",
-		SignalName: "rx",
-		TypeSave:   1,
+		SignalName: "U",
+		TypeSave:   2,
+		Tags:       []RLS_Tag{},
 	}
-
-	var begin_utime int64 = 1636507647
+	var begin_utime int64 = begin
 	var begin_id int64 = 1
 	var i int64
 	var value float32
@@ -275,11 +285,11 @@ func TestRequestDataT2Http(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "signal_id", "unixtime", "value", "offline"})
+	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
-		rows.AddRow(value[0], 1, value[1], value[2], value[3])
+		rows.AddRow(value[0], value[1], value[2], value[3])
 	}
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_ivalues$").WillReturnRows(rows)
+	mock.ExpectQuery(fmt.Sprintf("^SELECT (.+) FROM svsignal_fvalue WHERE signal_id=2 and utime >= %d and utime <=%d$", begin, end)).WillReturnRows(rows)
 	//-------
 
 	// init
@@ -318,7 +328,7 @@ func TestRequestDataT2Http(t *testing.T) {
 
 	//fmt.Println("response", bodyStr)
 	if bodyStr != string(jData) {
-		t.Errorf("wrong Response: got %+v, expected %+v", bodyStr, string(jData))
+		t.Errorf("wrong Response: got \n%+v\n, expected \n%+v", bodyStr, string(jData))
 	}
 	//-------
 

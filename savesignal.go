@@ -5,9 +5,17 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
+)
+
+const (
+	_ = iota
+	TYPE_IVALUE
+	TYPE_FVALUE
+	TYPE_MVALUE
 )
 
 type SValueInt struct {
@@ -23,13 +31,13 @@ type SVSignalDB struct {
 	signals         map[string]svsignal_signal
 	svalueint       map[string]SValueInt
 	svalueavg       map[string]*AVG
-	CH_REQUEST_HTTP chan RequestHttp
+	CH_REQUEST_HTTP chan interface{}
 }
 
 func newSVS() *SVSignalDB {
 	return &SVSignalDB{
 		CH_SAVE_VALUE:   make(chan ValueSignal, 1),
-		CH_REQUEST_HTTP: make(chan RequestHttp, 1),
+		CH_REQUEST_HTTP: make(chan interface{}, 1),
 		svalueint:       make(map[string]SValueInt),
 		svalueavg:       make(map[string]*AVG),
 	}
@@ -48,9 +56,6 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	s.systems = *systems
 	s.signals = *signals
 
-	//fmt.Println(systems)
-	//fmt.Println(signals)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -64,7 +69,30 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 			}
 		case msg, ok := <-s.CH_REQUEST_HTTP:
 			if ok {
-				msg.CH_RESP_LIST_SIG <- *s.response_list_signal()
+				switch request := msg.(type) {
+				case ReqListSignal:
+					request.CH_RR_LIST_SIGNAL <- *s.response_list_signal()
+					break
+				case ReqSignalData:
+					signal_key := fmt.Sprintf("%s.%s", request.groupkey, request.signalkey)
+					signal, ok := s.signals[signal_key]
+					if !ok {
+						request.CH_RESPONSE <- fmt.Errorf("error not found %s", signal_key)
+					} else {
+						var tags []svsignal_tag
+						if signal.tags != nil {
+							tags = *signal.tags
+						}
+						signal.tags = &tags
+						name_group := ""
+						group, ok := s.systems[request.groupkey]
+						if ok {
+							name_group = group.name
+						}
+						request_data_signal(s.db, request.CH_RESPONSE, name_group, signal, request.begin, request.end, signal.type_save)
+					}
+					break
+				}
 			}
 		}
 	}
@@ -76,8 +104,14 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	for _, group := range s.systems {
 		lsig.Groups[group.system_key] = &RLS_Groups{Name: group.name, Signals: make([]RLS_Signal, 0)}
 	}
-
-	for _, data := range s.signals {
+	// сортируем ключи
+	keys := make([]string, 0, len(s.signals))
+	for k := range s.signals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		data := s.signals[key]
 		_, ok := lsig.Groups[data.system_key]
 		if !ok {
 			lsig.Groups[data.system_key] = &RLS_Groups{}
@@ -375,4 +409,93 @@ func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
 		*tags[tag.signal_id] = append(*tags[tag.signal_id], tag)
 	}
 	return &tags, nil
+}
+
+func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal svsignal_signal, begin int64, end int64, type_table int) {
+	/*
+		type_table 0 - none; 1 - svsignal_ivalue; 2 - svsignal_fvalue; 3 - svsignal_mvalue
+	*/
+	var sql string = ""
+	switch type_table {
+	case TYPE_IVALUE:
+		sql = fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
+		break
+	case TYPE_FVALUE:
+		sql = fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
+		break
+	case TYPE_MVALUE:
+		sql = fmt.Sprintf("SELECT id, utime, max, min, mean, median, offline FROM svsignal_mvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
+		break
+	default:
+		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
+		return
+	}
+	var ivalues [][4]int64
+	var fvalues [][4]interface{}
+	if sql != "" {
+		// fmt.Println(sql)
+		rows, err := db.Query(sql)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var ivalue [4]int64
+			var fvalue [4]interface{}
+			var err error
+			switch type_table {
+			case TYPE_IVALUE:
+				err = rows.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+
+			case TYPE_FVALUE:
+				var id, utime, offline int64
+				var fval float32
+				err = rows.Scan(&id, &utime, &fval, &offline)
+				fvalue[0], fvalue[1], fvalue[2], fvalue[3] = id, utime, fval, offline
+
+			case TYPE_MVALUE:
+				break
+			}
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			switch type_table {
+			case TYPE_IVALUE:
+				ivalues = append(ivalues, ivalue)
+			case TYPE_FVALUE:
+				fvalues = append(fvalues, fvalue)
+			case TYPE_MVALUE:
+				break
+			}
+		}
+	}
+	tags := []RLS_Tag{}
+	for _, tag := range *signal.tags {
+		tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+	}
+	switch type_table {
+	case TYPE_IVALUE:
+		out <- ResponseDataSignalT1{
+			GroupKey:   signal.system_key,
+			GroupName:  name_group,
+			SignalKey:  signal.signal_key,
+			SignalName: signal.name,
+			TypeSave:   type_table,
+			Values:     ivalues,
+			Tags:       tags,
+		}
+	case TYPE_FVALUE:
+		out <- ResponseDataSignalT2{
+			GroupKey:   signal.system_key,
+			GroupName:  name_group,
+			SignalKey:  signal.signal_key,
+			SignalName: signal.name,
+			TypeSave:   type_table,
+			Values:     fvalues,
+			Tags:       tags,
+		}
+	case TYPE_MVALUE:
+		break
+	}
 }

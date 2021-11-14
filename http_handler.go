@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -34,9 +36,8 @@ type ResponseListSignal struct {
 	Groups map[string]*RLS_Groups `json:"groups"`
 }
 
-type RequestHttp struct {
-	type_cmd         int
-	CH_RESP_LIST_SIG chan ResponseListSignal
+type ReqListSignal struct {
+	CH_RR_LIST_SIGNAL chan ResponseListSignal
 }
 
 type RequestData struct {
@@ -52,7 +53,7 @@ func (d *RequestData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type GetListSignal struct {
-	CH_REQUEST_HTTP chan RequestHttp
+	CH_REQUEST_HTTP chan interface{}
 }
 
 func (g *GetListSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,9 +62,8 @@ func (g *GetListSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var CH_RESPONSE chan ResponseListSignal = make(chan ResponseListSignal, 1)
-	g.CH_REQUEST_HTTP <- RequestHttp{
-		type_cmd:         TYPE_CMD_REQUEST_LIST_SIGNAL,
-		CH_RESP_LIST_SIG: CH_RESPONSE,
+	g.CH_REQUEST_HTTP <- ReqListSignal{
+		CH_RR_LIST_SIGNAL: CH_RESPONSE,
 	}
 	response := <-CH_RESPONSE
 	jData, err := json.Marshal(response)
@@ -74,21 +74,23 @@ func (g *GetListSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(jData)
 }
 
-type ValuesT1 struct {
+/*
+type ValueInt struct {
 	Id      int64
 	Value   int64
 	UTime   int64
 	OffLine byte
 }
 
-type ValuesT2 struct {
+type ValueAvg struct {
 	Id      int64
 	Value   float64
 	UTime   int64
 	OffLine byte
 }
+*/
 
-type ValuesT3 struct {
+type ValueM struct {
 	Id      int64
 	Max     float64
 	Min     float64
@@ -103,6 +105,7 @@ type ResponseDataSignalT1 struct {
 	GroupName  string     `json:"groupname"`
 	SignalKey  string     `json:"signalkey"`
 	SignalName string     `json:"signalname"`
+	Tags       []RLS_Tag  `json:"tags"`
 	TypeSave   int        `json:"typesave"`
 	Values     [][4]int64 `json:"values"`
 }
@@ -112,21 +115,31 @@ type ResponseDataSignalT2 struct {
 	GroupName  string           `json:"groupname"`
 	SignalKey  string           `json:"signalkey"`
 	SignalName string           `json:"signalname"`
+	Tags       []RLS_Tag        `json:"tags"`
 	TypeSave   int              `json:"typesave"`
 	Values     [][4]interface{} `json:"values"`
 }
 
 type ResponseDataSignalT3 struct {
-	GroupKey   string     `json:"groupkey"`
-	GroupName  string     `json:"groupname"`
-	SignalKey  string     `json:"signalkey"`
-	SignalName string     `json:"signalname"`
-	TypeSave   int        `json:"typesave"`
-	Values     []ValuesT3 `json:"values"`
+	GroupKey   string    `json:"groupkey"`
+	GroupName  string    `json:"groupname"`
+	SignalKey  string    `json:"signalkey"`
+	SignalName string    `json:"signalname"`
+	Tags       []RLS_Tag `json:"tags"`
+	TypeSave   int       `json:"typesave"`
+	Values     []ValueM  `json:"values"`
 }
 
 type RequestSignalData struct {
-	CH_REQUEST_HTTP chan RequestHttp
+	CH_REQUEST_HTTP chan interface{}
+}
+
+type ReqSignalData struct {
+	begin       int64
+	end         int64
+	groupkey    string
+	signalkey   string
+	CH_RESPONSE chan interface{}
 }
 
 func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -134,11 +147,33 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", 500)
 		return
 	}
-
-	/*jData, err := json.Marshal(result)
+	get := r.URL.Query()
+	fmt.Println(get)
+	begin, err := strconv.ParseInt(get["begin"][0], 10, 32)
 	if err != nil {
-		// handle error
-	}*/
+		fmt.Println(err)
+	}
+	end, err := strconv.ParseInt(get["end"][0], 10, 32)
+	if err != nil {
+		fmt.Println(err)
+	}
+	groupkey := get["groupkey"][0]
+	signalkey := get["signalkey"][0]
+	fmt.Println(begin, end, groupkey, signalkey)
+
+	var CH_RESPONSE chan interface{} = make(chan interface{}, 1)
+	g.CH_REQUEST_HTTP <- ReqSignalData{
+		begin:       begin,
+		end:         end,
+		groupkey:    groupkey,
+		signalkey:   signalkey,
+		CH_RESPONSE: CH_RESPONSE,
+	}
+	response := <-CH_RESPONSE
+	jData, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte("Привет"))
+	w.Write(jData)
 }
