@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"myutils/rabbitmq"
 	"regexp"
 	"sync"
@@ -14,17 +13,29 @@ type Hub struct {
 	CH_MSG_AMPQ   chan rabbitmq.MessageAmpq
 	re_rkey       *regexp.Regexp
 	CH_SAVE_VALUE chan ValueSignal
-	//CH_REQUEST_HTTP chan RequestHttp
-	//CH_REQUEST_HTTP_DB chan RequestHttp
+	CH_SET_SIGNAL chan SetSignal
 }
 
 func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
-	re_rkey, _ := regexp.Compile(`svsignal.(\w+).(\w+)`)
+	re_rkey, _ := regexp.Compile(`svs\.(\w+)\.(\w+)\.(\w+)`)
 	return &Hub{
 		CH_MSG_AMPQ: make(chan rabbitmq.MessageAmpq, 1),
 		re_rkey:     re_rkey,
 		//CH_REQUEST_HTTP: make(chan RequestHttp, 1),
+	}
+}
+
+type SetSignal struct {
+	group_key  string
+	signal_key string
+	TypeSave   int     `json:"typesave"`
+	Period     int     `json:"period"`
+	Delta      float32 `json:"delta"`
+	Name       string  `json:"name"`
+	Tags       []struct {
+		Tag   string `json:"tag"`
+		Value string `json:"value"`
 	}
 }
 
@@ -39,24 +50,39 @@ type ValueSignal struct {
 
 func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
+	// defer fmt.Println("hub.run wg.Done")
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Hub run Done")
+			// log.Println("Hub run Done")
 			return
 		case msg, ok := <-h.CH_MSG_AMPQ:
 			if ok {
 				//log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
 				ret_cmd := h.re_rkey.FindStringSubmatch(msg.Routing_key)
-				if len(ret_cmd) == 3 {
-					sys_key := ret_cmd[1]
-					sig_key := ret_cmd[2]
-					data := ValueSignal{}
-					err := json.Unmarshal(msg.Data, &data)
-					if err == nil {
-						data.system_key = sys_key
-						data.signal_key = sig_key
-						h.CH_SAVE_VALUE <- data
+				if len(ret_cmd) == 4 {
+					type_msg := ret_cmd[1]
+					sys_key := ret_cmd[2]
+					sig_key := ret_cmd[3]
+					switch type_msg {
+					case "save":
+						data := ValueSignal{}
+						err := json.Unmarshal(msg.Data, &data)
+						if err == nil {
+							data.system_key = sys_key
+							data.signal_key = sig_key
+							h.CH_SAVE_VALUE <- data
+						}
+						break
+					case "set":
+						sig := SetSignal{}
+						err := json.Unmarshal(msg.Data, &sig)
+						if err == nil {
+							sig.group_key = sys_key
+							sig.signal_key = sig_key
+							h.CH_SET_SIGNAL <- sig
+						}
+						break
 					}
 				}
 			} else {

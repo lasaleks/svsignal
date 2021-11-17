@@ -27,8 +27,9 @@ type SValueInt struct {
 type SVSignalDB struct {
 	db              *sql.DB
 	CH_SAVE_VALUE   chan ValueSignal
+	CH_SET_SIGNAL   chan SetSignal
 	systems         map[string]svsignal_system
-	signals         map[string]svsignal_signal
+	signals         map[string]*svsignal_signal
 	svalueint       map[string]SValueInt
 	svalueavg       map[string]*AVG
 	CH_REQUEST_HTTP chan interface{}
@@ -37,6 +38,7 @@ type SVSignalDB struct {
 func newSVS() *SVSignalDB {
 	return &SVSignalDB{
 		CH_SAVE_VALUE:   make(chan ValueSignal, 1),
+		CH_SET_SIGNAL:   make(chan SetSignal, 1),
 		CH_REQUEST_HTTP: make(chan interface{}, 1),
 		svalueint:       make(map[string]SValueInt),
 		svalueavg:       make(map[string]*AVG),
@@ -59,11 +61,17 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("SaveSignal run Done")
+			//log.Println("SaveSignal run Done")
 			return
 		case msg, ok := <-s.CH_SAVE_VALUE:
 			if ok {
 				s.save_value(&msg)
+			} else {
+				return
+			}
+		case msg, ok := <-s.CH_SET_SIGNAL:
+			if ok {
+				s.set_signal(msg)
 			} else {
 				return
 			}
@@ -151,13 +159,13 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	if !ok {
 		// create signals
 		//fmt.Println("create signal", val.signal_key)
-		id, err := create_new_signal(s.db, val.system_key, val.signal_key, val.TypeSave)
+		id, err := create_new_signal(s.db, val.system_key, val.signal_key, "", val.TypeSave, 60, 10000)
 		if err != nil {
 			log.Println("Error create signal", val, err)
 			return
 		}
 		//log.Println("create signal", val, id, "OK")
-		signal = svsignal_signal{id: id, system_key: val.system_key, signal_key: val.signal_key, type_save: val.TypeSave, period: 60}
+		signal = &svsignal_signal{id: id, system_key: val.system_key, signal_key: val.signal_key, type_save: val.TypeSave, period: 60}
 		s.signals[sig_key] = signal
 	}
 	switch val.TypeSave {
@@ -280,7 +288,7 @@ func create_new_system(db *sql.DB, system_key string) error {
 	return nil
 }
 
-func create_new_signal(db *sql.DB, system_key string, signal_key string, type_save int) (int64, error) {
+func create_new_signal(db *sql.DB, system_key string, signal_key string, name string, type_save int, period int, delta float32) (int64, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return 0, err
@@ -299,7 +307,7 @@ func create_new_signal(db *sql.DB, system_key string, signal_key string, type_sa
 	//fmt.Println(str_sql)
 	var result sql.Result
 	// var err error
-	if result, err = tx.Exec(str_sql, system_key, signal_key, "", type_save, 60, 10000); err != nil {
+	if result, err = tx.Exec(str_sql, system_key, signal_key, name, type_save, period, delta); err != nil {
 		fmt.Println("Error", err)
 		return 0, err
 	}
@@ -308,6 +316,28 @@ func create_new_signal(db *sql.DB, system_key string, signal_key string, type_sa
 		return 0, err
 	}
 	return id, nil
+}
+
+func update_signal(db *sql.DB, signal_id int64, name string, type_save int, period int, delta float32) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+
+	sql := "UPDATE svsignal_signal SET name=?, type_save=?, period=?, delta=? WHERE signal_id=?"
+	if _, err := tx.Exec(sql, name, type_save, period, delta, signal_id); err != nil {
+		return err
+	}
+	return nil
 }
 
 type svsignal_system struct {
@@ -347,7 +377,7 @@ type svsignal_signal struct {
 	tags       *[]svsignal_tag
 }
 
-func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
+func load_signals(db *sql.DB) (*map[string]*svsignal_signal, error) {
 
 	tags, err := load_signal_tags(db)
 	if err != nil {
@@ -360,7 +390,7 @@ func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
 	}
 	defer rows.Close()
 
-	signals := make(map[string]svsignal_signal)
+	signals := make(map[string]*svsignal_signal)
 	for rows.Next() {
 		sig := svsignal_signal{}
 		err := rows.Scan(&sig.id, &sig.system_key, &sig.signal_key, &sig.name, &sig.type_save, &sig.period, &sig.delta)
@@ -374,7 +404,7 @@ func load_signals(db *sql.DB) (*map[string]svsignal_signal, error) {
 				sig.tags = tag
 			}
 		}
-		signals[fmt.Sprintf("%s.%s", sig.system_key, sig.signal_key)] = sig
+		signals[fmt.Sprintf("%s.%s", sig.system_key, sig.signal_key)] = &sig
 	}
 	return &signals, nil
 }
@@ -411,10 +441,14 @@ func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
 	return &tags, nil
 }
 
-func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal svsignal_signal, begin int64, end int64, type_table int) {
+func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, begin int64, end int64, type_table int) {
 	/*
 		type_table 0 - none; 1 - svsignal_ivalue; 2 - svsignal_fvalue; 3 - svsignal_mvalue
 	*/
+	if signal == nil {
+		out <- fmt.Errorf("error request_data_signal signal:nil")
+		return
+	}
 	var sql string = ""
 	switch type_table {
 	case TYPE_IVALUE:
@@ -498,4 +532,171 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 	case TYPE_MVALUE:
 		break
 	}
+}
+
+func (s *SVSignalDB) set_signal(setsig SetSignal) {
+	_, ok := s.systems[setsig.group_key]
+	if !ok {
+		// create systems
+		err := create_new_system(s.db, setsig.group_key)
+		if err != nil {
+			log.Printf("error create new system: group_key:%s; error:%v", setsig.group_key, err)
+		} else {
+			//fmt.Println("create systems", val.system_key, "Ok")
+			s.systems[setsig.group_key] = svsignal_system{system_key: setsig.group_key, name: ""}
+		}
+	}
+	sig_key := fmt.Sprintf("%s.%s", setsig.group_key, setsig.signal_key)
+	signal, ok := s.signals[sig_key]
+	if !ok {
+		// create signals
+		//fmt.Println("create signal", val.signal_key)
+		id, err := create_new_signal(s.db, setsig.group_key, setsig.signal_key, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+		if err != nil {
+			log.Println("Error create signal", setsig, err)
+			return
+		}
+		//log.Println("create signal", val, id, "OK")
+		signal = &svsignal_signal{
+			id: id, system_key: setsig.group_key,
+			signal_key: setsig.signal_key,
+			name:       setsig.Name,
+			type_save:  setsig.TypeSave,
+			period:     setsig.Period,
+			delta:      setsig.Delta,
+		}
+		s.signals[sig_key] = signal
+	} else {
+		if signal.name != setsig.Name || signal.type_save != setsig.TypeSave || signal.period != setsig.Period || signal.delta != setsig.Delta {
+			err := update_signal(s.db, signal.id, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+			if err != nil {
+				log.Println("Error update signal", setsig, err)
+				return
+			}
+		}
+	}
+	if signal.tags == nil {
+		signal.tags = &[]svsignal_tag{}
+	}
+	not_remove := []int64{}
+	for _, utag := range setsig.Tags {
+		create := true
+		for i := 0; i < len(*signal.tags); i++ {
+			tag := &(*signal.tags)[i]
+			if tag.tag == utag.Tag {
+				not_remove = append(not_remove, tag.id)
+				create = false
+				if tag.value != utag.Value {
+					// update
+					err := update_tag(s.db, tag.id, utag.Tag, utag.Value)
+					if err != nil {
+						fmt.Println(err)
+					} else {
+						tag.tag = utag.Tag
+						tag.value = utag.Value
+					}
+				}
+			}
+		}
+		if create {
+			// create
+			if new_tag_id, err := create_tag(s.db, signal.id, utag.Tag, utag.Value); err == nil {
+				*(signal.tags) = append(*signal.tags, svsignal_tag{id: new_tag_id, signal_id: signal.id, tag: utag.Tag, value: utag.Value})
+				not_remove = append(not_remove, new_tag_id)
+			} else {
+				fmt.Println("error create_tag", err)
+			}
+		}
+	}
+	// удаляем лишние метки
+	for i := 0; i < len(*signal.tags); {
+		remove := true
+		for _, not_remove_id := range not_remove {
+			if not_remove_id == (*signal.tags)[i].id {
+				remove = false
+				break
+			}
+		}
+		if remove {
+			*signal.tags = append((*signal.tags)[:i], (*signal.tags)[i+1:]...)
+			i = 0
+			err := delete_tag(s.db, (*signal.tags)[i].id)
+			if err != nil {
+				fmt.Println(err)
+			}
+			continue
+		}
+		i++
+	}
+}
+
+func create_tag(db *sql.DB, signal_id int64, tag string, value string) (int64, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+	str_sql := "INSERT INTO svsignal_tag(system_id, tag, value) VALUES (?,?,?)"
+	var result sql.Result
+	// var err error
+	if result, err = tx.Exec(str_sql, signal_id, tag, value); err != nil {
+		fmt.Println("Error", err)
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func update_tag(db *sql.DB, tag_id int64, tag string, value string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+	str_sql := "UPDATE svsignal_tag SET tag=?, value=? WHERE id=?"
+	if _, err = tx.Exec(str_sql, tag, value, tag_id); err != nil {
+		return err
+	}
+	return nil
+}
+
+func delete_tag(db *sql.DB, tag_id int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+	str_sql := "delete from svsignal_tag WHERE id=?"
+	if _, err = tx.Exec(str_sql, tag_id); err != nil {
+		fmt.Println("Error", err)
+		return err
+	}
+	return nil
 }

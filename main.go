@@ -73,7 +73,7 @@ func main() {
 			Name:         "svsingal",
 			ExchangeType: "topic",
 			Keys: []string{
-				fmt.Sprintln("svsignal.*.*.#"),
+				fmt.Sprintln("svs.*.*.*.#"),
 			},
 		},
 	}

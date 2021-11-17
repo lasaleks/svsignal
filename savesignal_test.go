@@ -32,8 +32,8 @@ func TestCreate(t *testing.T) {
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
-		AddRow(1, "IE", "1234.rx", "rx", 1, 60, 10000).
-		AddRow(2, "IE", "1235.rx", "rx", 1, 60, 10000)
+		AddRow(1, "IE", "1234.rx", "rx", 1, 60, float32(10000)).
+		AddRow(2, "IE", "1235.rx", "rx", 1, 60, float32(10000))
 
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
 
@@ -42,13 +42,13 @@ func TestCreate(t *testing.T) {
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs("TestSys", "test1", "", 1, 60, 10000).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs("TestSys", "test1", "", 1, 60, float32(10000)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(1, 10, 1636278215, 0).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs("TestSys", "test2", "", 1, 60, 10000).WillReturnResult(sqlmock.NewResult(2, 1))
+	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs("TestSys", "test2", "", 1, 60, float32(10000)).WillReturnResult(sqlmock.NewResult(2, 1))
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, 10, 1636278215, 0).WillReturnResult(sqlmock.NewResult(2, 1))
