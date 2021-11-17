@@ -14,7 +14,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const VERSION = "0.0.1"
+const VERSION = "0.0.2"
 
 var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
