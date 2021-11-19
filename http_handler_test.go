@@ -22,11 +22,11 @@ func TestGetListHttp(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	rows := sqlmock.NewRows([]string{"system_key", "name"}).
-		AddRow("IE", "InsiteExpert").
-		AddRow("IEBlock", "InsiteExpert BlockCombine")
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
 		AddRow(1, 1, "location", "pk110 1234").
@@ -35,11 +35,11 @@ func TestGetListHttp(t *testing.T) {
 		AddRow(4, 2, "desc", "rx/tx 1235")
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
-		AddRow(1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
-		AddRow(2, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
 	//-------
 
 	// init
@@ -158,11 +158,11 @@ func TestRequestDataT1Http(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	rows := sqlmock.NewRows([]string{"system_key", "name"}).
-		AddRow("IE", "InsiteExpert").
-		AddRow("IEBlock", "InsiteExpert BlockCombine")
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
 		AddRow(1, 1, "location", "pk110 1234").
@@ -171,11 +171,11 @@ func TestRequestDataT1Http(t *testing.T) {
 		AddRow(4, 2, "desc", "rx/tx 1235")
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
-		AddRow(1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
-		AddRow(2, "IE", "beacon.1234.U", "U", 2, 60, 10000)
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1234.U", "U", 2, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
@@ -273,17 +273,20 @@ func TestRequestDataT2Http(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	rows := sqlmock.NewRows([]string{"system_key", "name"}).
-		AddRow("IE", "InsiteExpert").
-		AddRow("IEBlock", "InsiteExpert BlockCombine")
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
-		AddRow(1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
-		AddRow(2, "IE", "beacon.1234.U", "U", 2, 60, 10000)
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1234.U", "U", 2, 60, 10000)
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {

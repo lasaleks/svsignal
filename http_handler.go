@@ -148,7 +148,6 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	get := r.URL.Query()
-	fmt.Println(get)
 	begin, err := strconv.ParseInt(get["begin"][0], 10, 32)
 	if err != nil {
 		fmt.Println(err)
@@ -159,7 +158,6 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	groupkey := get["groupkey"][0]
 	signalkey := get["signalkey"][0]
-	fmt.Println(begin, end, groupkey, signalkey)
 
 	var CH_RESPONSE chan interface{} = make(chan interface{}, 1)
 	g.CH_REQUEST_HTTP <- ReqSignalData{

@@ -28,11 +28,12 @@ type SVSignalDB struct {
 	db              *sql.DB
 	CH_SAVE_VALUE   chan ValueSignal
 	CH_SET_SIGNAL   chan SetSignal
-	systems         map[string]svsignal_system
+	groups          map[string]svsignal_group
 	signals         map[string]*svsignal_signal
 	svalueint       map[string]SValueInt
 	svalueavg       map[string]*AVG
 	CH_REQUEST_HTTP chan interface{}
+	debug_level     int
 }
 
 func newSVS() *SVSignalDB {
@@ -47,7 +48,7 @@ func newSVS() *SVSignalDB {
 
 func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
-	systems, err := load_system(s.db)
+	groups, err := load_groups(s.db)
 	if err != nil {
 		log.Panicf("error load svsignal_systems %v", err)
 	}
@@ -55,7 +56,7 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	if err != nil {
 		log.Panicf("error load svsignal_signals %v", err)
 	}
-	s.systems = *systems
+	s.groups = *groups
 	s.signals = *signals
 
 	for {
@@ -93,7 +94,7 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 						}
 						signal.tags = &tags
 						name_group := ""
-						group, ok := s.systems[request.groupkey]
+						group, ok := s.groups[request.groupkey]
 						if ok {
 							name_group = group.name
 						}
@@ -109,8 +110,8 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	lsig := ResponseListSignal{Groups: make(map[string]*RLS_Groups)}
 
-	for _, group := range s.systems {
-		lsig.Groups[group.system_key] = &RLS_Groups{Name: group.name, Signals: make([]RLS_Signal, 0)}
+	for _, group := range s.groups {
+		lsig.Groups[group.group_key] = &RLS_Groups{Name: group.name, Signals: make([]RLS_Signal, 0)}
 	}
 	// сортируем ключи
 	keys := make([]string, 0, len(s.signals))
@@ -120,15 +121,15 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	sort.Strings(keys)
 	for _, key := range keys {
 		data := s.signals[key]
-		_, ok := lsig.Groups[data.system_key]
+		_, ok := lsig.Groups[data.group_key]
 		if !ok {
-			lsig.Groups[data.system_key] = &RLS_Groups{}
+			lsig.Groups[data.group_key] = &RLS_Groups{}
 		}
 		tags := []RLS_Tag{}
 		for _, tag := range *data.tags {
 			tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
 		}
-		lsig.Groups[data.system_key].Signals = append(lsig.Groups[data.system_key].Signals, RLS_Signal{
+		lsig.Groups[data.group_key].Signals = append(lsig.Groups[data.group_key].Signals, RLS_Signal{
 			Id:        data.id,
 			SignalKey: data.signal_key,
 			Name:      data.name,
@@ -142,30 +143,37 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 }
 
 func (s *SVSignalDB) save_value(val *ValueSignal) {
-	_, ok := s.systems[val.system_key]
+	group, ok := s.groups[val.group_key]
 	if !ok {
 		// create systems
-		err := create_new_system(s.db, val.system_key)
+		id, err := create_new_group(s.db, val.group_key)
 		if err != nil {
-			log.Printf("error create new system: system_key:%s; error:%v", val.system_key, err)
+			log.Printf("error create new system: system_key:%s; error:%v", val.group_key, err)
+			return
 		} else {
 			//fmt.Println("create systems", val.system_key, "Ok")
-			s.systems[val.system_key] = svsignal_system{system_key: val.system_key, name: ""}
+			group = svsignal_group{id: id, group_key: val.group_key, name: ""}
+			s.groups[val.group_key] = group
 		}
 
 	}
-	sig_key := fmt.Sprintf("%s.%s", val.system_key, val.signal_key)
+	sig_key := fmt.Sprintf("%s.%s", val.group_key, val.signal_key)
+
+	if s.debug_level >= 4 {
+		log.Printf("SaveSignal:%s value:%v offline:%d utime:%d\n", sig_key, val.Value, val.Offline, val.UTime)
+	}
+
 	signal, ok := s.signals[sig_key]
 	if !ok {
 		// create signals
 		//fmt.Println("create signal", val.signal_key)
-		id, err := create_new_signal(s.db, val.system_key, val.signal_key, "", val.TypeSave, 60, 10000)
+		id, err := create_new_signal(s.db, group.id, val.signal_key, "", val.TypeSave, 60, 10000)
 		if err != nil {
 			log.Println("Error create signal", val, err)
 			return
 		}
 		//log.Println("create signal", val, id, "OK")
-		signal = &svsignal_signal{id: id, system_key: val.system_key, signal_key: val.signal_key, type_save: val.TypeSave, period: 60}
+		signal = &svsignal_signal{id: id, group_id: group.id, group_key: val.group_key, signal_key: val.signal_key, type_save: val.TypeSave, period: 60}
 		s.signals[sig_key] = signal
 	}
 	switch val.TypeSave {
@@ -264,31 +272,7 @@ func insert_valuef(db *sql.DB, system_id int64, value float64, utime int64, offl
 	return nil
 }
 
-func create_new_system(db *sql.DB, system_key string) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit()
-		default:
-			tx.Rollback()
-		}
-	}()
-
-	str_sql := "INSERT INTO svsignal_system(system_key, name) VALUES (?, ?)"
-	//fmt.Println(str_sql)
-	if _, err := tx.Exec(str_sql, system_key, ""); err != nil {
-		fmt.Println("Error", err)
-		return err
-	}
-	return nil
-}
-
-func create_new_signal(db *sql.DB, system_key string, signal_key string, name string, type_save int, period int, delta float32) (int64, error) {
+func create_new_group(db *sql.DB, system_key string) (int64, error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return 0, err
@@ -303,12 +287,37 @@ func create_new_signal(db *sql.DB, system_key string, signal_key string, name st
 		}
 	}()
 
-	str_sql := "INSERT INTO svsignal_signal(system_key, signal_key, name, type_save, period, delta) VALUES (?,?,?,?,?,?)"
-	//fmt.Println(str_sql)
+	str_sql := "INSERT INTO svsignal_group(system_key, name) VALUES (?, ?)"
 	var result sql.Result
-	// var err error
-	if result, err = tx.Exec(str_sql, system_key, signal_key, name, type_save, period, delta); err != nil {
+	if result, err = tx.Exec(str_sql, system_key, ""); err != nil {
 		fmt.Println("Error", err)
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func create_new_signal(db *sql.DB, group_id int64, signal_key string, name string, type_save int, period int, delta float32) (int64, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			tx.Rollback()
+		}
+	}()
+
+	str_sql := "INSERT INTO svsignal_signal(group_id, signal_key, name, type_save, period, delta) VALUES (?,?,?,?,?,?)"
+	var result sql.Result
+	if result, err = tx.Exec(str_sql, group_id, signal_key, name, type_save, period, delta); err != nil {
 		return 0, err
 	}
 	id, err := result.LastInsertId()
@@ -340,35 +349,37 @@ func update_signal(db *sql.DB, signal_id int64, name string, type_save int, peri
 	return nil
 }
 
-type svsignal_system struct {
-	name       string
-	system_key string
+type svsignal_group struct {
+	id        int64
+	name      string
+	group_key string
 }
 
-func load_system(db *sql.DB) (*map[string]svsignal_system, error) {
+func load_groups(db *sql.DB) (*map[string]svsignal_group, error) {
 	// Prepare statement for reading data
-	rows, err := db.Query("SELECT system_key, name FROM svsignal_system")
+	rows, err := db.Query("SELECT id, group_key, name FROM svsignal_group")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	systems := make(map[string]svsignal_system)
+	groups := make(map[string]svsignal_group)
 	for rows.Next() {
-		sys := svsignal_system{}
-		err := rows.Scan(&sys.system_key, &sys.name)
+		g := svsignal_group{}
+		err := rows.Scan(&g.id, &g.group_key, &g.name)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		systems[sys.system_key] = sys
+		groups[g.group_key] = g
 	}
-	return &systems, nil
+	return &groups, nil
 }
 
 type svsignal_signal struct {
 	id         int64
-	system_key string
+	group_id   int64
+	group_key  string
 	signal_key string
 	name       string
 	type_save  int
@@ -384,7 +395,8 @@ func load_signals(db *sql.DB) (*map[string]*svsignal_signal, error) {
 		tags = nil
 	}
 	// Prepare statement for reading data
-	rows, err := db.Query("SELECT id, system_key, signal_key, name, type_save, period, delta FROM svsignal_signal")
+
+	rows, err := db.Query("SELECT id, group_id, g.group_key, signal_key, name, type_save, period, delta FROM svsignal_signal inner join svsignal_group g on g.id=group_id")
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +405,7 @@ func load_signals(db *sql.DB) (*map[string]*svsignal_signal, error) {
 	signals := make(map[string]*svsignal_signal)
 	for rows.Next() {
 		sig := svsignal_signal{}
-		err := rows.Scan(&sig.id, &sig.system_key, &sig.signal_key, &sig.name, &sig.type_save, &sig.period, &sig.delta)
+		err := rows.Scan(&sig.id, &sig.group_id, &sig.group_key, &sig.signal_key, &sig.name, &sig.type_save, &sig.period, &sig.delta)
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -404,7 +416,7 @@ func load_signals(db *sql.DB) (*map[string]*svsignal_signal, error) {
 				sig.tags = tag
 			}
 		}
-		signals[fmt.Sprintf("%s.%s", sig.system_key, sig.signal_key)] = &sig
+		signals[fmt.Sprintf("%s.%s", sig.group_key, sig.signal_key)] = &sig
 	}
 	return &signals, nil
 }
@@ -511,7 +523,7 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 	switch type_table {
 	case TYPE_IVALUE:
 		out <- ResponseDataSignalT1{
-			GroupKey:   signal.system_key,
+			GroupKey:   signal.group_key,
 			GroupName:  name_group,
 			SignalKey:  signal.signal_key,
 			SignalName: signal.name,
@@ -521,7 +533,7 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 		}
 	case TYPE_FVALUE:
 		out <- ResponseDataSignalT2{
-			GroupKey:   signal.system_key,
+			GroupKey:   signal.group_key,
 			GroupName:  name_group,
 			SignalKey:  signal.signal_key,
 			SignalName: signal.name,
@@ -535,15 +547,16 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 }
 
 func (s *SVSignalDB) set_signal(setsig SetSignal) {
-	_, ok := s.systems[setsig.group_key]
+	group, ok := s.groups[setsig.group_key]
 	if !ok {
 		// create systems
-		err := create_new_system(s.db, setsig.group_key)
+		id, err := create_new_group(s.db, setsig.group_key)
 		if err != nil {
 			log.Printf("error create new system: group_key:%s; error:%v", setsig.group_key, err)
 		} else {
 			//fmt.Println("create systems", val.system_key, "Ok")
-			s.systems[setsig.group_key] = svsignal_system{system_key: setsig.group_key, name: ""}
+			group = svsignal_group{id: id, group_key: setsig.group_key, name: ""}
+			s.groups[setsig.group_key] = group
 		}
 	}
 	sig_key := fmt.Sprintf("%s.%s", setsig.group_key, setsig.signal_key)
@@ -551,14 +564,15 @@ func (s *SVSignalDB) set_signal(setsig SetSignal) {
 	if !ok {
 		// create signals
 		//fmt.Println("create signal", val.signal_key)
-		id, err := create_new_signal(s.db, setsig.group_key, setsig.signal_key, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+		id, err := create_new_signal(s.db, group.id, setsig.signal_key, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
 		if err != nil {
 			log.Println("Error create signal", setsig, err)
 			return
 		}
 		//log.Println("create signal", val, id, "OK")
 		signal = &svsignal_signal{
-			id: id, system_key: setsig.group_key,
+			id:         id,
+			group_key:  setsig.group_key,
 			signal_key: setsig.signal_key,
 			name:       setsig.Name,
 			type_save:  setsig.TypeSave,

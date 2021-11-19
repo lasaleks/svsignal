@@ -26,7 +26,7 @@ func TestHubRun(t *testing.T) {
 	go hub.run(&wg, ctx_hub)
 
 	val1 := ValueSignal{
-		system_key: "IE",
+		group_key:  "IE",
 		signal_key: "beacon_1234_rx",
 		Value:      100,
 		UTime:      1636388515,
@@ -43,7 +43,7 @@ func TestHubRun(t *testing.T) {
 	}
 
 	val2 := ValueSignal{
-		system_key: "IE",
+		group_key:  "IE",
 		signal_key: "beacon_1234_U",
 		Value:      1010,
 		UTime:      1636388615,
@@ -60,7 +60,7 @@ func TestHubRun(t *testing.T) {
 	}
 
 	val3 := ValueSignal{
-		system_key: "IE",
+		group_key:  "IE",
 		signal_key: "beacon_1234_rx",
 		Value:      2010,
 		UTime:      1636388715,
@@ -105,11 +105,11 @@ func TestRmqSetSignal(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	rows := sqlmock.NewRows([]string{"system_key", "name"}).
-		AddRow("IE", "InsiteExpert").
-		AddRow("IEBlock", "InsiteExpert BlockCombine")
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_system$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
 		AddRow(1, 1, "location", "pk110 1234").
@@ -118,11 +118,11 @@ func TestRmqSetSignal(t *testing.T) {
 		AddRow(4, 2, "desc", "rx/tx 1235")
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"id", "system_key", "signal_key", "name", "type_save", "period", "delta"}).
-		AddRow(1, "IE", "beacon_1234_rx", "rx", 1, 60, 10000).
-		AddRow(2, "IE", "beacon_1235_rx", "rx", 1, 60, 10000)
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
 	//-------
 
 	var cfg Config
@@ -158,7 +158,7 @@ func TestRmqSetSignal(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs("IE", "beacon_1236_rx", "Качество связи TX/RX", 2, 60, 5.0).WillReturnResult(sqlmock.NewResult(3, 1))
+	mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs(1, "beacon_1236_rx", "Качество связи TX/RX", 2, 60, 5.0).WillReturnResult(sqlmock.NewResult(3, 1))
 	mock.ExpectCommit()
 
 	mock.ExpectBegin()

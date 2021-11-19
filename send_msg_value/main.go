@@ -12,7 +12,7 @@ import (
 
 var (
 	url        = flag.String("url", "amqp://rabbit:rabbitie@rabbitmq:5672/", "")
-	system_key = flag.String("system-key", "", "")
+	group_key  = flag.String("group-key", "", "")
 	signal_key = flag.String("signal-key", "", "")
 	value      = flag.Float64("value", 0, "")
 	utime      = flag.Int64("utime", time.Now().Local().Unix(), "")
@@ -29,8 +29,8 @@ type ValueSignal struct {
 
 func main() {
 	flag.Parse()
-	if len(*system_key) == 0 {
-		fmt.Println("not found system_key")
+	if len(*group_key) == 0 {
+		fmt.Println("not found group_key")
 		return
 	}
 	if len(*signal_key) == 0 {
@@ -45,7 +45,8 @@ func main() {
 		TypeSave: *typesave,
 	}
 
-	rkey := fmt.Sprintf("svsignal.%s.%s", *system_key, *signal_key)
+	rkey := fmt.Sprintf("svs.save.%s.%s", *group_key, *signal_key)
+	fmt.Println("routing key:", rkey)
 	jData, _ := json.Marshal(val)
 
 	if err := publish(*url, "svsingal", "topic", rkey, string(jData), false); err != nil {

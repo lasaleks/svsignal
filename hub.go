@@ -18,7 +18,7 @@ type Hub struct {
 
 func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
-	re_rkey, _ := regexp.Compile(`svs\.(\w+)\.(\w+)\.(\w+)`)
+	re_rkey, _ := regexp.Compile(`^svs\.(\w+)\.(\w+)\.(.+)$`)
 	return &Hub{
 		CH_MSG_AMPQ: make(chan rabbitmq.MessageAmpq, 1),
 		re_rkey:     re_rkey,
@@ -40,7 +40,7 @@ type SetSignal struct {
 }
 
 type ValueSignal struct {
-	system_key string
+	group_key  string
 	signal_key string
 	Value      float64 `json:"value"`
 	UTime      int64   `json:"utime"`
@@ -69,11 +69,10 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 						data := ValueSignal{}
 						err := json.Unmarshal(msg.Data, &data)
 						if err == nil {
-							data.system_key = sys_key
+							data.group_key = sys_key
 							data.signal_key = sig_key
 							h.CH_SAVE_VALUE <- data
 						}
-						break
 					case "set":
 						sig := SetSignal{}
 						err := json.Unmarshal(msg.Data, &sig)
@@ -82,7 +81,6 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 							sig.signal_key = sig_key
 							h.CH_SET_SIGNAL <- sig
 						}
-						break
 					}
 				}
 			} else {

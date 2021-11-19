@@ -56,6 +56,7 @@ func main() {
 
 	savesignal := newSVS()
 	savesignal.db = db
+	savesignal.debug_level = cfg.CONFIG.DEBUG_LEVEL
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
@@ -73,7 +74,7 @@ func main() {
 			Name:         "svsingal",
 			ExchangeType: "topic",
 			Keys: []string{
-				fmt.Sprintln("svs.*.*.*.#"),
+				fmt.Sprint("svs.*.*.#"),
 			},
 		},
 	}
