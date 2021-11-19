@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 )
 
@@ -174,4 +175,62 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jData)
+}
+
+type RequestSaveValue struct {
+	CH_SAVE_VALUE chan ValueSignal
+	re_key        *regexp.Regexp
+}
+
+func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	get := r.URL.Query()
+	var key string
+	if key = get.Get("key"); len(key) == 0 {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	var group_key string
+	var signal_key string
+	ret_cmd := h.re_key.FindStringSubmatch(key)
+	if len(ret_cmd) == 3 {
+		group_key = ret_cmd[1]
+		signal_key = ret_cmd[2]
+	} else {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+
+	vsig := ValueSignal{group_key: group_key, signal_key: signal_key}
+
+	var err error
+	var typesave int64
+	if vsig.Value, err = strconv.ParseFloat(get.Get("value"), 64); err != nil {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	if vsig.UTime, err = strconv.ParseInt(get.Get("utime"), 10, 64); err != nil {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	if vsig.Offline, err = strconv.ParseInt(get.Get("offline"), 10, 64); err != nil {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	if typesave, err = strconv.ParseInt(get.Get("typesave"), 10, 32); err != nil {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	vsig.TypeSave = int(typesave)
+	fmt.Printf(
+		"save_value group_key:%s signal_key:%s value:%v utime:%d offline:%d typesave:%d\n",
+		group_key, signal_key, vsig.Value, vsig.UTime, vsig.Offline, vsig.TypeSave,
+	)
+
+	h.CH_SAVE_VALUE <- vsig
+
+	w.Write([]byte{})
 }

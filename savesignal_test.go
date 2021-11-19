@@ -99,18 +99,18 @@ func TestSave1(t *testing.T) {
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
 
 	for _, v := range []struct {
-		system_id int64
+		signal_id int64
 		value     int64
 		utime     int64
 		offline   int
 	}{
-		{system_id: 2, value: 10, utime: 1636278215, offline: 0},
-		{system_id: 2, value: 20, utime: 1636278218, offline: 0},
-		{system_id: 2, value: 20, utime: 1636278221, offline: 1},
-		{system_id: 2, value: 20, utime: 1636278224, offline: 0},
+		{signal_id: 2, value: 10, utime: 1636278215, offline: 0},
+		{signal_id: 2, value: 20, utime: 1636278218, offline: 0},
+		{signal_id: 2, value: 20, utime: 1636278221, offline: 1},
+		{signal_id: 2, value: 20, utime: 1636278224, offline: 0},
 	} {
 		mock.ExpectBegin()
-		mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(v.system_id, v.value, v.utime, v.offline).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(v.signal_id, v.value, v.utime, v.offline).WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 	}
 

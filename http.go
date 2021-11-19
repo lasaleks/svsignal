@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"regexp"
 	"sync"
 )
 
@@ -20,6 +21,8 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 
 	http.Handle("/api/requestdata/", &RequestData{})
 	http.Handle("/api/listsignal/", &GetListSignal{h.svsignal.CH_REQUEST_HTTP})
+	re_key, _ := regexp.Compile(`^(\w+)\.(.+)$`)
+	http.Handle("/api/savevalue", &RequestSaveValue{CH_SAVE_VALUE: h.hub.CH_SAVE_VALUE, re_key: re_key})
 
 	log.Printf("Starting Http Server at %s\n", h.Addr)
 	err := h.server.ListenAndServe()

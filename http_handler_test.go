@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
+	"regexp"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -338,4 +340,71 @@ func TestRequestDataT2Http(t *testing.T) {
 	cancel_db()
 	//cancel_hub()
 	wg.Wait()
+}
+
+func TestRequestSaveValue(t *testing.T) {
+	// mock db
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
+		AddRow(1, 1, "location", "pk110 1234").
+		AddRow(2, 1, "desc", "rx/tx 1234").
+		AddRow(3, 2, "location", "pk110 1235").
+		AddRow(4, 2, "desc", "rx/tx 1235")
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	//-------
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	savesignal := newSVS()
+	savesignal.db = db
+	ctx_db, cancel_db := context.WithCancel(ctx)
+	wg.Add(1)
+	go savesignal.run(&wg, ctx_db)
+
+	key := "IE.beacon.1235.rx"
+	value := 10.1
+	utime := 1637295512
+	offline := 0
+	typesave := 1
+	uri := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
+
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, int(value), utime, offline).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	req := httptest.NewRequest("GET", uri, nil)
+	w := httptest.NewRecorder()
+
+	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
+	http_handler := RequestSaveValue{CH_SAVE_VALUE: savesignal.CH_SAVE_VALUE, re_key: re_rkey}
+	http_handler.ServeHTTP(w, req)
+	//resp := w.Result()
+
+	for len(savesignal.CH_SAVE_VALUE) > 0 {
+		time.Sleep(time.Microsecond * 10)
+	}
+	close(savesignal.CH_SAVE_VALUE)
+
+	cancel_db()
+	wg.Wait()
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
 }
