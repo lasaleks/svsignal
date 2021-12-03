@@ -45,7 +45,6 @@ type ValueSignal struct {
 	Value      float64 `json:"value"`
 	UTime      int64   `json:"utime"`
 	Offline    int64   `json:"offline"`
-	TypeSave   int     `json:"typesave"`
 }
 
 func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {

@@ -143,20 +143,6 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 }
 
 func (s *SVSignalDB) save_value(val *ValueSignal) {
-	group, ok := s.groups[val.group_key]
-	if !ok {
-		// create systems
-		id, err := create_new_group(s.db, val.group_key)
-		if err != nil {
-			log.Printf("error create new system: system_key:%s; error:%v", val.group_key, err)
-			return
-		} else {
-			//fmt.Println("create systems", val.system_key, "Ok")
-			group = svsignal_group{id: id, group_key: val.group_key, name: ""}
-			s.groups[val.group_key] = group
-		}
-
-	}
 	sig_key := fmt.Sprintf("%s.%s", val.group_key, val.signal_key)
 
 	if s.debug_level >= 4 {
@@ -165,18 +151,12 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 
 	signal, ok := s.signals[sig_key]
 	if !ok {
-		// create signals
-		//fmt.Println("create signal", val.signal_key)
-		id, err := create_new_signal(s.db, group.id, val.signal_key, "", val.TypeSave, 60, 10000)
-		if err != nil {
-			log.Println("Error create signal", val, err)
-			return
+		if s.debug_level >= 1 {
+			fmt.Errorf("not found signal, key:%s", sig_key)
 		}
-		//log.Println("create signal", val, id, "OK")
-		signal = &svsignal_signal{id: id, group_id: group.id, group_key: val.group_key, signal_key: val.signal_key, type_save: val.TypeSave, period: 60}
-		s.signals[sig_key] = signal
+		return
 	}
-	switch val.TypeSave {
+	switch signal.type_save {
 	case 1:
 		is_save := false
 		pvalue, ok := s.svalueint[sig_key]

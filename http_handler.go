@@ -184,11 +184,10 @@ type RequestSaveValue struct {
 }
 
 type ReqJsonSaveValue struct {
-	Key      string  `json:"key"`
-	Value    float64 `json:"value"`
-	UTime    int64   `json:"utime"`
-	OffLine  int64   `json:"offline"`
-	TypeSave int     `json:"typesave"`
+	Key     string  `json:"key"`
+	Value   float64 `json:"value"`
+	UTime   int64   `json:"utime"`
+	OffLine int64   `json:"offline"`
 }
 
 func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +212,6 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		vsig.Value = value.Value
 		vsig.UTime = value.UTime
 		vsig.Offline = value.OffLine
-		vsig.TypeSave = value.TypeSave
 	} else if r.Method == http.MethodGet {
 		get := r.URL.Query()
 		var key string
@@ -230,7 +228,6 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var err error
-		var typesave int64
 		if vsig.Value, err = strconv.ParseFloat(get.Get("value"), 64); err != nil {
 			http.Error(w, "Internal Server Error", 500)
 			return
@@ -243,11 +240,6 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal Server Error", 500)
 			return
 		}
-		if typesave, err = strconv.ParseInt(get.Get("typesave"), 10, 32); err != nil {
-			http.Error(w, "Internal Server Error", 500)
-			return
-		}
-		vsig.TypeSave = int(typesave)
 	} else {
 		http.Error(w, "Internal Server Error", 500)
 		return

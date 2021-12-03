@@ -31,7 +31,6 @@ func TestHubRun(t *testing.T) {
 		Value:      100,
 		UTime:      1636388515,
 		Offline:    0,
-		TypeSave:   2,
 	}
 	jData, _ := json.Marshal(val1)
 
@@ -48,7 +47,6 @@ func TestHubRun(t *testing.T) {
 		Value:      1010,
 		UTime:      1636388615,
 		Offline:    0,
-		TypeSave:   1,
 	}
 	jData, _ = json.Marshal(val2)
 
@@ -65,7 +63,6 @@ func TestHubRun(t *testing.T) {
 		Value:      2010,
 		UTime:      1636388715,
 		Offline:    1,
-		TypeSave:   2,
 	}
 	jData, _ = json.Marshal(val3)
 

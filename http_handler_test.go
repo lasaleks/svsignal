@@ -560,7 +560,6 @@ func TestRequestPostSaveValue(t *testing.T) {
 	value := 10.1
 	utime := 1637295512
 	offline := 0
-	typesave := 1
 	uri := fmt.Sprintf("http://localhost:8080/api/savevalue")
 
 	mock.ExpectBegin()
@@ -568,7 +567,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 	mock.ExpectCommit()
 
 	// uri := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
-	svalue := ReqJsonSaveValue{Key: key, Value: value, UTime: int64(utime), OffLine: int64(offline), TypeSave: typesave}
+	svalue := ReqJsonSaveValue{Key: key, Value: value, UTime: int64(utime), OffLine: int64(offline)}
 	d, err := json.Marshal(svalue)
 	if err != nil {
 		t.Fatal(err)
