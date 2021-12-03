@@ -226,7 +226,7 @@ func TestGetListHttp_Empty(t *testing.T) {
 }
 
 func TestRequestDataT1Http(t *testing.T) {
-	uri := "http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.rx&begin=1636507647&end=1636508647"
+	url := "http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.rx&begin=1636507647&end=1636508647"
 
 	data_signal := ResponseDataSignalT1{
 		GroupKey:   "IE",
@@ -313,7 +313,7 @@ func TestRequestDataT1Http(t *testing.T) {
 	go hub.run(&wg, ctx_hub)*/
 
 	//---http GetList
-	req := httptest.NewRequest("GET", uri, nil)
+	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
 	http_handler := RequestSignalData{CH_REQUEST_HTTP: savesignal.CH_REQUEST_HTTP, re_key: re_rkey}
@@ -342,7 +342,7 @@ func TestRequestDataT1Http(t *testing.T) {
 func TestRequestDataT2Http(t *testing.T) {
 	var begin int64 = 1636507647
 	var end int64 = 1636508647
-	uri := fmt.Sprintf("http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.U&begin=%d&end=%d", begin, end)
+	url := fmt.Sprintf("http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.U&begin=%d&end=%d", begin, end)
 
 	data_signal := ResponseDataSignalT2{
 		GroupKey:   "IE",
@@ -424,7 +424,7 @@ func TestRequestDataT2Http(t *testing.T) {
 	go hub.run(&wg, ctx_hub)*/
 
 	//---http GetList
-	req := httptest.NewRequest("GET", uri, nil)
+	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
 	http_handler := &RequestSignalData{CH_REQUEST_HTTP: savesignal.CH_REQUEST_HTTP, re_key: re_rkey}
@@ -494,13 +494,13 @@ func TestRequestSaveValue(t *testing.T) {
 	utime := 1637295512
 	offline := 0
 	typesave := 1
-	uri := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
+	url := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
 
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, int(value), utime, offline).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	req := httptest.NewRequest("GET", uri, nil)
+	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
 
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
@@ -560,19 +560,19 @@ func TestRequestPostSaveValue(t *testing.T) {
 	value := 10.1
 	utime := 1637295512
 	offline := 0
-	uri := fmt.Sprintf("http://localhost:8080/api/savevalue")
+	url := fmt.Sprintf("http://localhost:8080/api/savevalue")
 
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, int(value), utime, offline).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	// uri := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
+	// url := fmt.Sprintf("http://localhost:8080/api/savevalue?key=%s&value=%f&utime=%d&offline=%d&typesave=%d", key, value, utime, offline, typesave)
 	svalue := ReqJsonSaveValue{Key: key, Value: value, UTime: int64(utime), OffLine: int64(offline)}
 	d, err := json.Marshal(svalue)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest("POST", uri, bytes.NewBuffer(d))
+	req := httptest.NewRequest("POST", url, bytes.NewBuffer(d))
 	w := httptest.NewRecorder()
 
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
@@ -591,4 +591,141 @@ func TestRequestPostSaveValue(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expections: %s", err)
 	}
+}
+
+func TestHttpSetSignal(t *testing.T) {
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"}).
+		AddRow(1, 1, "location", "pk110 1234").
+		AddRow(2, 1, "desc", "rx/tx 1234").
+		AddRow(3, 2, "location", "pk110 1235").
+		AddRow(4, 2, "desc", "rx/tx 1235")
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
+
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
+	//-------
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	savesignal := newSVS()
+	savesignal.db = db
+	ctx_db, cancel_db := context.WithCancel(ctx)
+	wg.Add(1)
+	go savesignal.run(&wg, ctx_db)
+
+	tt := []struct {
+		caseName  string
+		sig       HTTPRequestSetSignal
+		type_save int // 1 - создание, 2 - обновление
+		signal_id int
+	}{
+		{
+			caseName:  "Создание",
+			type_save: 1,
+			signal_id: 3,
+			sig: HTTPRequestSetSignal{
+				Key:      "IE.beacon_1236_rx",
+				TypeSave: 2,
+				Period:   60,
+				Delta:    10000,
+				Name:     "Качество связи",
+				Tags: []struct {
+					Tag   string `json:"tag"`
+					Value string `json:"value"`
+				}{
+					{Tag: "site", Value: "1236"},
+					{Tag: "max_y", Value: "100"},
+					{Tag: "min_y", Value: "-10"},
+				},
+			},
+		},
+		{
+			caseName:  "UPDATE signal",
+			type_save: 2,
+			signal_id: 3,
+			sig: HTTPRequestSetSignal{
+				Key:      "IE.beacon_1236_rx",
+				TypeSave: 1,
+				Period:   0,
+				Delta:    0,
+				Name:     "-Качество связи-",
+				Tags: []struct {
+					Tag   string `json:"tag"`
+					Value string `json:"value"`
+				}{
+					{Tag: "site", Value: "1236"},
+					{Tag: "max_y", Value: "100"},
+					{Tag: "min_y", Value: "-10"},
+				},
+			},
+		},
+	}
+
+	url := fmt.Sprintf("http://localhost:8080/api/setsignal")
+
+	var tag_id int64 = 5
+	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
+	http_handler := HTTPSetSignal{CH_SET_SIGNAL: savesignal.CH_SET_SIGNAL, re_key: re_rkey}
+	for _, tc := range tt {
+		t.Run(tc.caseName, func(t *testing.T) {
+
+			var signal_key string
+			ret_cmd := re_rkey.FindStringSubmatch(tc.sig.Key)
+			_ = ret_cmd[1]
+			signal_key = ret_cmd[2]
+			switch tc.type_save {
+			case 1:
+				mock.ExpectBegin()
+				mock.ExpectExec("INSERT INTO svsignal_signal").WithArgs(1, signal_key, tc.sig.Name, tc.sig.TypeSave, tc.sig.Period, tc.sig.Delta).WillReturnResult(sqlmock.NewResult(int64(tc.signal_id), 1))
+				mock.ExpectCommit()
+
+				for _, tag := range tc.sig.Tags {
+					mock.ExpectBegin()
+					mock.ExpectExec("INSERT INTO svsignal_tag").WithArgs(tc.signal_id, tag.Tag, tag.Value).WillReturnResult(sqlmock.NewResult(tag_id, 1))
+					mock.ExpectCommit()
+					tag_id++
+				}
+			case 2:
+				// UPDATE svsignal_signal SET name=?, type_save=?, period=?, delta=? WHERE id=?
+				mock.ExpectBegin()
+				mock.ExpectExec("UPDATE svsignal_signal").WithArgs(tc.sig.Name, tc.sig.TypeSave, tc.sig.Period, tc.sig.Delta, tc.signal_id).WillReturnResult(sqlmock.NewResult(int64(tc.signal_id), 1))
+				mock.ExpectCommit()
+			}
+			// TODO дополнить проверкой создания удаления svsignal_tags
+			d, err := json.Marshal(tc.sig)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest("POST", url, bytes.NewBuffer(d))
+			w := httptest.NewRecorder()
+			http_handler.ServeHTTP(w, req)
+
+			for len(savesignal.CH_SET_SIGNAL) > 0 {
+				time.Sleep(time.Microsecond * 10)
+			}
+		})
+	}
+
+	for len(savesignal.CH_SAVE_VALUE) > 0 {
+		time.Sleep(time.Microsecond * 10)
+	}
+	close(savesignal.CH_SAVE_VALUE)
+
+	cancel_db()
+	wg.Wait()
 }

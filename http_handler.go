@@ -326,3 +326,53 @@ func (h *GroupSignalView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", 500)
 	}
 }
+
+type HTTPSetSignal struct {
+	CH_SET_SIGNAL chan SetSignal
+	re_key        *regexp.Regexp
+}
+
+type HTTPRequestSetSignal struct {
+	Key      string  `json:"key"`
+	TypeSave int     `json:"typesave"`
+	Period   int     `json:"period"`
+	Delta    float32 `json:"delta"`
+	Name     string  `json:"name"`
+	Tags     []struct {
+		Tag   string `json:"tag"`
+		Value string `json:"value"`
+	}
+}
+
+func (h *HTTPSetSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		reqBody, _ := ioutil.ReadAll(r.Body)
+		var sig HTTPRequestSetSignal
+		err := json.Unmarshal(reqBody, &sig)
+		if err != nil {
+			http.Error(w, "Internal Server Error", 500)
+			return
+		}
+		ret_cmd := h.re_key.FindStringSubmatch(sig.Key)
+		set_signal := SetSignal{}
+		if len(ret_cmd) == 3 {
+			set_signal.group_key = ret_cmd[1]
+			set_signal.signal_key = ret_cmd[2]
+		} else {
+			http.Error(w, "Internal Server Error", 500)
+			return
+		}
+
+		set_signal.TypeSave = sig.TypeSave
+		set_signal.Name = sig.Name
+		set_signal.Delta = sig.Delta
+		set_signal.Period = sig.Period
+		set_signal.Tags = sig.Tags
+		h.CH_SET_SIGNAL <- set_signal
+	} else {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+
+	w.Write([]byte{})
+}
