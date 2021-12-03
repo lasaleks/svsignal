@@ -1,5 +1,5 @@
 
-function draw_trend(series, max_y, min_y) {
+function draw_trend(series, max_y, min_y, min_x, max_x) {
     let options = {
         chart: {
             height: (9 / 16 * 100) + '%', // 16:9 ratio
@@ -18,7 +18,10 @@ function draw_trend(series, max_y, min_y) {
             title: {
                 text: 'Время'
             },
-            zoomEnabled: true
+            zoomEnabled: true,
+            min: min_x,
+            max: max_x,
+            startOnTick: false
         },
         time: {
             //timezone: 'Asia/Novokuznetsk',
@@ -31,10 +34,10 @@ function draw_trend(series, max_y, min_y) {
         },
         plotOptions: {
             series: {
-                lineWidth: 1
+                lineWidth: 1,
+                //pointPlacement: 'on'
             }
         },
-    
         series: series
     };
     if(max_y!==undefined) {
@@ -130,44 +133,37 @@ $( document ).ready(function() {
                 }
             }
         }
+        
         for (const [groupkey, group] of Object.entries(groups)) {
             nodes = [];
             other_signal = group.site['other'];
             nodes_other = [];
             for(let i = 0;i<other_signal.length;i++) {
+                let name = other_signal[i].signal.name == '' ? other_signal[i].key : other_signal[i].signal.name;
                 nodes_other.push({
                     id: other_signal[i].key, 
-                    "text": `<i class="far fa-square checkbox"></i> ${other_signal[i].key} <i class="fas fa-wave-square"></i>`, 
+                    "text": `<i class="far fa-square checkbox"></i> ${name}`,
                     class:"signal"
                     })
             }
-            nodes.push({id: `${groupkey}_other`, "text": '', 'nodes': nodes_other, icon: "far fa-folder"})
+            nodes.push({id: `${groupkey}_other`, "text": '', 'nodes': nodes_other, icon: "fas fa-wave-square"})
 
             delete group.site['other'];
             for (const [namesite, signals] of Object.entries(group.site)) {
                 signal_nodes = []
                 for(let i = 0;i<signals.length;i++) {
+                    let name = signals[i].signal.name == '' ? signals[i].key : signals[i].signal.name;
                     signal_nodes.push({
                         id: signals[i].key, 
-                        "text": `<i class="far fa-square checkbox"></i> ${signals[i].key} <i class="fas fa-wave-square"></i>`, 
+                        "text": `<i class="far fa-square checkbox"></i> ${name}`, 
                         class:"signal"
                     })
                 }
-                nodes.push({id: `${groupkey}_other`, "text": namesite, 'nodes': signal_nodes, icon: "far fa-folder"})
+                nodes.push({id: `${groupkey}_other`, "text": namesite, 'nodes': signal_nodes, icon: "fas fa-wave-square"})
             }
             tree.push({id: groupkey, "text": ` ${groupkey} ${group.group.name}`, 'nodes': nodes, icon: "far fa-folder"})
         }
-        /*for (const [key, group] of Object.entries(data)) {
-            nodes = []
-            for (const [s_key, signal] of Object.entries(group.signals)) {
-                nodes.push({
-                id: s_key, 
-                "text": `<i class="far fa-square checkbox"></i> ${s_key} <i class="fas fa-wave-square"></i>`, 
-                class:"signal"
-                })
-            }
-            tree.push({id: key, "text": " " + key, "nodes": nodes, icon: "far fa-folder", class:"groupsignal"})
-        }*/
+
         $('#tree').bstreeview({ data: tree });
         document.querySelectorAll('.signal .checkbox').forEach(i => i.addEventListener(
             "click",
@@ -222,14 +218,32 @@ $( document ).ready(function() {
                     }
                     let data = [];
                     if(result.values != undefined) {
-                        for(let j=0;j<result.values.length;j++) {
-                            // result.values[j][3] - offline
-                            data.push([
-                                    result.values[j][1] * 1000,
-                                    result.values[j][2]
-                                ]
-                            )
-                        }     
+                        switch(result.typesave) {
+                        case 2:
+                            for(let j=0;j<result.values.length;j++) {
+                                // result.values[j][3] - offline
+                                data.push([
+                                        result.values[j][1] * 1000,
+                                        result.values[j][2]
+                                    ]
+                                )
+                            }
+                        break;
+                        case 1:
+                            let prev_value = null;
+                            let prev_utime = null;
+                            for(let j=0;j<result.values.length;j++) {
+                                let utime = result.values[j][1] * 1000;
+                                let value = result.values[j][2];
+                                if(prev_value != null && value != prev_value && utime != prev_utime) {
+                                    data.push([utime, prev_value])
+                                }
+                                data.push([utime, value])
+                                prev_utime = utime;
+                                prev_value = value
+                            }
+                        break;
+                        }
                     }
                     series.push({
                         data: data,
@@ -237,12 +251,12 @@ $( document ).ready(function() {
                         name: Signals[i]
                     })
                     if(i==Signals.length-1) {
-                        draw_trend(series, max_y, min_y);
+                        draw_trend(series, max_y, min_y, begin*1000, end*1000);
                     }
                 }.bind(this),
                 error: function (jqXHR, exception) {
                     if(i==Signals.length-1) {
-                        draw_trend(series, max_y, min_y);
+                        draw_trend(series, max_y, min_y, begin*1000, end*1000);
                     }
                     console.log(i, "ERROR", jqXHR, exception);
                 }
