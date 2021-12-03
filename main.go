@@ -63,6 +63,7 @@ func main() {
 
 	hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
+	hub.CH_SET_SIGNAL = savesignal.CH_SET_SIGNAL
 	//hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = cfg.CONFIG.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
@@ -85,7 +86,7 @@ func main() {
 	}
 
 	//---http
-	http := HttpSrv{Addr: cfg.CONFIG.HTTP.Address}
+	http := HttpSrv{Addr: cfg.CONFIG.HTTP.Address, svsignal: savesignal}
 	http.hub = hub
 	http.svsignal = savesignal
 	wg.Add(1)

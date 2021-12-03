@@ -105,7 +105,7 @@ func TestRmqSetSignal(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+	rows := sqlmock.NewRows([]string{"id", "group_key", "name"}).
 		AddRow(1, "IE", "InsiteExpert").
 		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
 
@@ -122,7 +122,7 @@ func TestRmqSetSignal(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 	//-------
 
 	var cfg Config

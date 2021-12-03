@@ -35,7 +35,7 @@ func TestCreate(t *testing.T) {
 		AddRow(1, 1, "IE", "1234.rx", "rx", 1, 60, float32(10000)).
 		AddRow(2, 1, "IE", "1235.rx", "rx", 1, 60, float32(10000))
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_group").WithArgs("TestSys", "").WillReturnResult(sqlmock.NewResult(3, 1))
@@ -96,7 +96,7 @@ func TestSave1(t *testing.T) {
 
 	rows = sqlmock.NewRows([]string{"id", "group_id", "g.group_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(2, 1, "Group", "Test", "-", 1, 60, 10000)
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	for _, v := range []struct {
 		signal_id int64
@@ -177,7 +177,7 @@ func TestSave2(t *testing.T) {
 
 	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, 1, "Group", "Test", "-", 2, 60, 10000)
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	for _, v := range []struct {
 		system_id int64
@@ -258,7 +258,7 @@ func TestSave3(t *testing.T) {
 
 	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
 		AddRow(1, 1, "Group", "Test", "-", 2, 60, 10000)
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	for _, v := range []struct {
 		system_id int64

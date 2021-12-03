@@ -42,7 +42,112 @@ func TestGetListHttp(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
+	//-------
+
+	// init
+	savesignal := newSVS()
+	savesignal.db = db
+	ctx_db, cancel_db := context.WithCancel(ctx)
+	wg.Add(1)
+	go savesignal.run(&wg, ctx_db)
+
+	/*hub := newHub()
+	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
+	hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
+	hub.debug_level = 0
+	ctx_hub, cancel_hub := context.WithCancel(ctx)
+	wg.Add(1)
+	go hub.run(&wg, ctx_hub)*/
+
+	//---http GetList
+	url := "http://localhost/api/listsignal"
+	req := httptest.NewRequest("GET", url, nil)
+	w := httptest.NewRecorder()
+
+	http_handler := GetListSignal{savesignal.CH_REQUEST_HTTP}
+	http_handler.ServeHTTP(w, req)
+	StatusCode := 200
+	if w.Code != StatusCode {
+		t.Errorf("wrong StatusCode: got %d, expected %d", w.Code, StatusCode)
+	}
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	bodyStr := string(body)
+	list_signal := ResponseListSignal{Groups: map[string]*RLS_Groups{
+		"IE": {
+			Name: "InsiteExpert",
+			Signals: map[string]RLS_Signal{
+				"IE.beacon.1234.rx": {
+					Name:     "rx",
+					TypeSave: 1,
+					Period:   60,
+					Delta:    10000,
+					Tags: []RLS_Tag{
+						{Tag: "location", Value: "pk110 1234"},
+						{Tag: "desc", Value: "rx/tx 1234"},
+					},
+				},
+				"IE.beacon.1235.rx": {
+					Name:     "rx",
+					TypeSave: 1,
+					Period:   60,
+					Delta:    10000,
+					Tags: []RLS_Tag{
+						{Tag: "location", Value: "pk110 1235"},
+						{Tag: "desc", Value: "rx/tx 1235"},
+					}},
+			},
+		},
+		"IEBlock": {
+			Name: "InsiteExpert BlockCombine",
+			// GroupKey: "IEBlock",
+			Signals: map[string]RLS_Signal{},
+		},
+	}}
+	jData, _ := json.Marshal(list_signal.Groups)
+	/*if err != nil {
+		// handle error
+	}*/
+	w.Header().Set("Content-Type", "application/json")
+
+	cmp_str := string(jData)
+	if bodyStr != cmp_str {
+		t.Errorf("wrong Response: got \n%+v\nexpected \n%+v\n", bodyStr, cmp_str)
+	}
+	//-------
+
+	cancel_db()
+	// cancel_hub()
+	wg.Wait()
+}
+
+func TestGetListHttp_Empty(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	// mock db
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+	rows := sqlmock.NewRows([]string{"id", "system_key", "name"}).
+		AddRow(1, "IE", "InsiteExpert").
+		AddRow(2, "IEBlock", "InsiteExpert BlockCombine")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
+		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
+
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 	//-------
 
 	// init
@@ -80,25 +185,30 @@ func TestGetListHttp(t *testing.T) {
 		"IE": {
 			Name: "InsiteExpert",
 			// GroupKey: "IE",
-			Signals: []RLS_Signal{
-				{Id: 1, SignalKey: "beacon.1234.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000, Tags: []RLS_Tag{
-					{Tag: "location", Value: "pk110 1234"},
-					{Tag: "desc", Value: "rx/tx 1234"},
+			Signals: map[string]RLS_Signal{
+				"IE.beacon.1234.rx": {
+					Name:     "rx",
+					TypeSave: 1,
+					Period:   60,
+					Delta:    10000,
+					Tags:     []RLS_Tag{},
 				},
+				"IE.beacon.1235.rx": {
+					Name:     "rx",
+					TypeSave: 1,
+					Period:   60,
+					Delta:    10000,
+					Tags:     []RLS_Tag{},
 				},
-				{Id: 2, SignalKey: "beacon.1235.rx", Name: "rx", TypeSave: 1, Period: 60, Delta: 10000, Tags: []RLS_Tag{
-					{Tag: "location", Value: "pk110 1235"},
-					{Tag: "desc", Value: "rx/tx 1235"},
-				}},
 			},
 		},
 		"IEBlock": {
 			Name: "InsiteExpert BlockCombine",
 			// GroupKey: "IEBlock",
-			Signals: []RLS_Signal{},
+			Signals: map[string]RLS_Signal{},
 		},
 	}}
-	jData, _ := json.Marshal(list_signal)
+	jData, _ := json.Marshal(list_signal.Groups)
 	/*if err != nil {
 		// handle error
 	}*/
@@ -116,7 +226,7 @@ func TestGetListHttp(t *testing.T) {
 }
 
 func TestRequestDataT1Http(t *testing.T) {
-	uri := "http://localhost:8080/api/signal/getdata?groupkey=IE&signalkey=beacon.1234.rx&begin=1636507647&end=1636508647"
+	uri := "http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.rx&begin=1636507647&end=1636508647"
 
 	data_signal := ResponseDataSignalT1{
 		GroupKey:   "IE",
@@ -178,7 +288,7 @@ func TestRequestDataT1Http(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1234.U", "U", 2, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
@@ -205,8 +315,8 @@ func TestRequestDataT1Http(t *testing.T) {
 	//---http GetList
 	req := httptest.NewRequest("GET", uri, nil)
 	w := httptest.NewRecorder()
-
-	http_handler := RequestSignalData{savesignal.CH_REQUEST_HTTP}
+	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
+	http_handler := RequestSignalData{CH_REQUEST_HTTP: savesignal.CH_REQUEST_HTTP, re_key: re_rkey}
 	http_handler.ServeHTTP(w, req)
 	StatusCode := 200
 	if w.Code != StatusCode {
@@ -232,7 +342,7 @@ func TestRequestDataT1Http(t *testing.T) {
 func TestRequestDataT2Http(t *testing.T) {
 	var begin int64 = 1636507647
 	var end int64 = 1636508647
-	uri := fmt.Sprintf("http://localhost:8080/api/signal/getdata?groupkey=IE&signalkey=beacon.1234.U&begin=%d&end=%d", begin, end)
+	uri := fmt.Sprintf("http://localhost:8080/api/signal/getdata?signalkey=IE.beacon.1234.U&begin=%d&end=%d", begin, end)
 
 	data_signal := ResponseDataSignalT2{
 		GroupKey:   "IE",
@@ -289,7 +399,7 @@ func TestRequestDataT2Http(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1234.U", "U", 2, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
 	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
@@ -316,8 +426,8 @@ func TestRequestDataT2Http(t *testing.T) {
 	//---http GetList
 	req := httptest.NewRequest("GET", uri, nil)
 	w := httptest.NewRecorder()
-
-	http_handler := RequestSignalData{savesignal.CH_REQUEST_HTTP}
+	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
+	http_handler := &RequestSignalData{CH_REQUEST_HTTP: savesignal.CH_REQUEST_HTTP, re_key: re_rkey}
 	http_handler.ServeHTTP(w, req)
 	StatusCode := 200
 	if w.Code != StatusCode {
@@ -368,7 +478,7 @@ func TestRequestSaveValue(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 	//-------
 	var wg sync.WaitGroup
 	ctx := context.Background()
@@ -435,7 +545,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 		AddRow(1, 1, "IE", "beacon.1234.rx", "rx", 1, 60, 10000).
 		AddRow(2, 1, "IE", "beacon.1235.rx", "rx", 1, 60, 10000)
 
-	mock.ExpectQuery("^SELECT (.+) FROM svsignal_signal inner join svsignal_group g on g.id=group_id$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 	//-------
 	var wg sync.WaitGroup
 	ctx := context.Background()

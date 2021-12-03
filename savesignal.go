@@ -111,7 +111,7 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	lsig := ResponseListSignal{Groups: make(map[string]*RLS_Groups)}
 
 	for _, group := range s.groups {
-		lsig.Groups[group.group_key] = &RLS_Groups{Name: group.name, Signals: make([]RLS_Signal, 0)}
+		lsig.Groups[group.group_key] = &RLS_Groups{Name: group.name, Signals: make(map[string]RLS_Signal)}
 	}
 	// сортируем ключи
 	keys := make([]string, 0, len(s.signals))
@@ -126,18 +126,18 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 			lsig.Groups[data.group_key] = &RLS_Groups{}
 		}
 		tags := []RLS_Tag{}
-		for _, tag := range *data.tags {
-			tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+		if data.tags != nil {
+			for _, tag := range *data.tags {
+				tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+			}
 		}
-		lsig.Groups[data.group_key].Signals = append(lsig.Groups[data.group_key].Signals, RLS_Signal{
-			Id:        data.id,
-			SignalKey: data.signal_key,
-			Name:      data.name,
-			TypeSave:  data.type_save,
-			Period:    data.period,
-			Delta:     data.delta,
-			Tags:      tags,
-		})
+		lsig.Groups[data.group_key].Signals[key] = RLS_Signal{
+			Name:     data.name,
+			TypeSave: data.type_save,
+			Period:   data.period,
+			Delta:    data.delta,
+			Tags:     tags,
+		}
 	}
 	return &lsig
 }
@@ -342,7 +342,7 @@ func update_signal(db *sql.DB, signal_id int64, name string, type_save int, peri
 		}
 	}()
 
-	sql := "UPDATE svsignal_signal SET name=?, type_save=?, period=?, delta=? WHERE signal_id=?"
+	sql := "UPDATE svsignal_signal SET name=?, type_save=?, period=?, delta=? WHERE id=?"
 	if _, err := tx.Exec(sql, name, type_save, period, delta, signal_id); err != nil {
 		return err
 	}
@@ -396,7 +396,7 @@ func load_signals(db *sql.DB) (*map[string]*svsignal_signal, error) {
 	}
 	// Prepare statement for reading data
 
-	rows, err := db.Query("SELECT id, group_id, g.group_key, signal_key, name, type_save, period, delta FROM svsignal_signal inner join svsignal_group g on g.id=group_id")
+	rows, err := db.Query("SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id")
 	if err != nil {
 		return nil, err
 	}
@@ -610,6 +610,7 @@ func (s *SVSignalDB) set_signal(setsig SetSignal) {
 						tag.value = utag.Value
 					}
 				}
+				break
 			}
 		}
 		if create {
@@ -658,7 +659,7 @@ func create_tag(db *sql.DB, signal_id int64, tag string, value string) (int64, e
 			tx.Rollback()
 		}
 	}()
-	str_sql := "INSERT INTO svsignal_tag(system_id, tag, value) VALUES (?,?,?)"
+	str_sql := "INSERT INTO svsignal_tag(signal_id, tag, value) VALUES (?,?,?)"
 	var result sql.Result
 	// var err error
 	if result, err = tx.Exec(str_sql, signal_id, tag, value); err != nil {

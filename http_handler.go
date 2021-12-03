@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
+	"text/template"
 )
 
 const (
@@ -20,38 +22,26 @@ type RLS_Tag struct {
 }
 
 type RLS_Signal struct {
-	Id        int64     `json:"id"`
-	SignalKey string    `json:"signalkey"`
-	Name      string    `json:"Name"`
-	TypeSave  int       `json:"typesave"`
-	Period    int       `json:"period"`
-	Delta     float32   `json:"delta"`
-	Tags      []RLS_Tag `json:"tags"`
+	/*Id        int64     `json:"id"`
+	SignalKey string    `json:"signalkey"`*/
+	Name     string    `json:"name"`
+	TypeSave int       `json:"typesave"`
+	Period   int       `json:"period"`
+	Delta    float32   `json:"delta"`
+	Tags     []RLS_Tag `json:"tags"`
 }
 
 type RLS_Groups struct {
-	Name    string       `json:"name"`
-	Signals []RLS_Signal `json:"signals"`
+	Name    string                `json:"name"`
+	Signals map[string]RLS_Signal `json:"signals"`
 }
 
 type ResponseListSignal struct {
-	Groups map[string]*RLS_Groups `json:"groups"`
+	Groups map[string]*RLS_Groups
 }
 
 type ReqListSignal struct {
 	CH_RR_LIST_SIGNAL chan ResponseListSignal
-}
-
-type RequestData struct {
-}
-
-func (d *RequestData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Internal Server Error", 500)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte("Привет"))
 }
 
 type GetListSignal struct {
@@ -68,7 +58,7 @@ func (g *GetListSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CH_RR_LIST_SIGNAL: CH_RESPONSE,
 	}
 	response := <-CH_RESPONSE
-	jData, err := json.Marshal(response)
+	jData, err := json.Marshal(response.Groups)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -134,6 +124,7 @@ type ResponseDataSignalT3 struct {
 
 type RequestSignalData struct {
 	CH_REQUEST_HTTP chan interface{}
+	re_key          *regexp.Regexp
 }
 
 type ReqSignalData struct {
@@ -158,8 +149,17 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupkey := get["groupkey"][0]
-	signalkey := get["signalkey"][0]
+
+	ret_cmd := g.re_key.FindStringSubmatch(get["signalkey"][0])
+	var groupkey string
+	var signalkey string
+	if len(ret_cmd) == 3 {
+		groupkey = ret_cmd[1]
+		signalkey = ret_cmd[2]
+	} else {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
 
 	var CH_RESPONSE chan interface{} = make(chan interface{}, 1)
 	g.CH_REQUEST_HTTP <- ReqSignalData{
@@ -256,4 +256,81 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.CH_SAVE_VALUE <- vsig
 
 	w.Write([]byte{})
+}
+
+type TrendView struct {
+	templates []string
+}
+
+func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	/*	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}*/
+	get := r.URL.Query()
+	fmt.Printf("%v\n", get)
+	files := h.templates
+
+	signals := get["signalkey"]
+
+	begin, err := strconv.ParseInt(get["begin"][0], 10, 32)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	end, err := strconv.ParseInt(get["end"][0], 10, 32)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+
+	data := struct {
+		Title   string
+		Signals []string
+		Begin   int64
+		End     int64
+	}{
+		Title:   "My page",
+		Signals: signals,
+		Begin:   begin,
+		End:     end,
+	}
+	err = ts.Execute(w, data)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+type GroupSignalView struct {
+	templates []string
+}
+
+func (h *GroupSignalView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	/*	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}*/
+	get := r.URL.Query()
+	fmt.Printf("%v\n", get)
+	files := h.templates
+
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+
+	err = ts.Execute(w, nil)
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, "Internal Server Error", 500)
+	}
 }
