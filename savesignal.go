@@ -267,7 +267,7 @@ func create_new_group(db *sql.DB, system_key string) (int64, error) {
 		}
 	}()
 
-	str_sql := "INSERT INTO svsignal_group(system_key, name) VALUES (?, ?)"
+	str_sql := "INSERT INTO svsignal_group(group_key, name) VALUES (?, ?)"
 	var result sql.Result
 	if result, err = tx.Exec(str_sql, system_key, ""); err != nil {
 		fmt.Println("Error", err)

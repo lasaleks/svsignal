@@ -86,7 +86,15 @@ func main() {
 	}
 
 	//---http
-	http := HttpSrv{Addr: cfg.CONFIG.HTTP.Address, svsignal: savesignal}
+	http := HttpSrv{
+		Addr:       cfg.CONFIG.HTTP.Address,
+		UnixSocket: cfg.CONFIG.HTTP.UnixSocket,
+		svsignal:   savesignal,
+	}
+	err = http.initUnixSocketServer()
+	if err != nil {
+		panic(err)
+	}
 	http.hub = hub
 	http.svsignal = savesignal
 	wg.Add(1)
@@ -96,12 +104,13 @@ func main() {
 	f_shutdown := func(ctx context.Context) {
 		fmt.Println("ShutDown")
 		err := consumer.Shutdown()
-		cancel_hub()
-		cancel_db()
-		http.Close()
 		if err != nil {
 			log.Println("Consumer", err)
 		}
+		cancel_hub()
+		cancel_db()
+		http.Close()
+
 	}
 	wg.Add(1)
 	go myutils.WaitSignalExit(&wg, ctx, f_shutdown)

@@ -137,18 +137,19 @@ $( document ).ready(function() {
         for (const [groupkey, group] of Object.entries(groups)) {
             nodes = [];
             other_signal = group.site['other'];
-            nodes_other = [];
-            for(let i = 0;i<other_signal.length;i++) {
-                let name = other_signal[i].signal.name == '' ? other_signal[i].key : other_signal[i].signal.name;
-                nodes_other.push({
-                    id: other_signal[i].key, 
-                    "text": `<i class="far fa-square checkbox"></i> ${name}`,
-                    class:"signal"
-                    })
+            if(other_signal!==undefined) {
+                nodes_other = [];
+                for(let i = 0;i<other_signal.length;i++) {
+                    let name = other_signal[i].signal.name == '' ? other_signal[i].key : other_signal[i].signal.name;
+                    nodes_other.push({
+                        id: other_signal[i].key, 
+                        "text": `<i class="far fa-square checkbox"></i> ${name}`,
+                        class:"signal"
+                        })
+                }
+                nodes.push({id: `${groupkey}_other`, "text": '', 'nodes': nodes_other, icon: "fas fa-wave-square"})
+                delete group.site['other'];
             }
-            nodes.push({id: `${groupkey}_other`, "text": '', 'nodes': nodes_other, icon: "fas fa-wave-square"})
-
-            delete group.site['other'];
             for (const [namesite, signals] of Object.entries(group.site)) {
                 signal_nodes = []
                 for(let i = 0;i<signals.length;i++) {
@@ -186,6 +187,7 @@ $( document ).ready(function() {
         let series = [];
         let cnt = 0;
         let max_y = undefined, min_y = undefined;
+        let query_idx = 0
         for(let i=0;i<Signals.length;i++) {
             let url = `/svs/api/signal/getdata?signalkey=${Signals[i]}&begin=${begin}&end=${end}`;
             $.ajax({
@@ -250,14 +252,16 @@ $( document ).ready(function() {
                         //lineWidth: 0.5,
                         name: Signals[i]
                     })
-                    if(i==Signals.length-1) {
+                    if(query_idx==Signals.length-1) {
                         draw_trend(series, max_y, min_y, begin*1000, end*1000);
                     }
+                    query_idx++;
                 }.bind(this),
                 error: function (jqXHR, exception) {
-                    if(i==Signals.length-1) {
+                    if(query_idx==Signals.length-1) {
                         draw_trend(series, max_y, min_y, begin*1000, end*1000);
                     }
+                    query_idx++;
                     console.log(i, "ERROR", jqXHR, exception);
                 }
             });

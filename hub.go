@@ -36,7 +36,7 @@ type SetSignal struct {
 	Tags       []struct {
 		Tag   string `json:"tag"`
 		Value string `json:"value"`
-	}
+	} `json:"tags"`
 }
 
 type ValueSignal struct {

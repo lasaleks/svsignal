@@ -24,9 +24,10 @@ type Config struct {
 			DATABASE string `yaml:"database"`
 		} `yaml:"mysql"`
 		HTTP *struct {
-			Address  string `yaml:"address"`
-			User     string `yaml:"user"`
-			Password string `yaml:"password"`
+			Address    string `yaml:"address"`
+			UnixSocket string `yaml:"unixsocket"`
+			User       string `yaml:"user"`
+			Password   string `yaml:"password"`
 		} `yaml:"http"`
 	}
 }
