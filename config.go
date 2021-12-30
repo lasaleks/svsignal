@@ -29,6 +29,7 @@ type Config struct {
 			User       string `yaml:"user"`
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
+		TimeZone string `yaml:"TimeZone"`
 	}
 }
 

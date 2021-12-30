@@ -53,6 +53,10 @@ func main() {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 	//
+	err = migratedb(db)
+	if err != nil {
+		panic(err)
+	}
 
 	savesignal := newSVS()
 	savesignal.db = db
@@ -72,7 +76,7 @@ func main() {
 
 	exchanges := []rabbitmq.ConsumerExchange{
 		{
-			Name:         "svsingal",
+			Name:         "svsignal",
 			ExchangeType: "topic",
 			Keys: []string{
 				fmt.Sprint("svs.*.*.#"),
@@ -90,6 +94,7 @@ func main() {
 		Addr:       cfg.CONFIG.HTTP.Address,
 		UnixSocket: cfg.CONFIG.HTTP.UnixSocket,
 		svsignal:   savesignal,
+		cfg:        &cfg,
 	}
 	err = http.initUnixSocketServer()
 	if err != nil {

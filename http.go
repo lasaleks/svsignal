@@ -18,6 +18,7 @@ type HttpSrv struct {
 	hub        *Hub
 	svsignal   *SVSignalDB
 	listen     net.Listener
+	cfg        *Config
 }
 
 func newUnixSocket(path string) (net.Listener, error) {
@@ -55,10 +56,34 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
 	h.server = &http.Server{Addr: h.Addr, Handler: nil}
 
-	http.Handle("/svs/signal", &TrendView{templates: []string{
+	http.Handle("/svs/trend/apx/view", &TrendView{
+		templates: []string{
+			"./templates/trend_apx.page.html",
+			"./templates/base.layout.html",
+		},
+		cfg: h.cfg,
+	})
+
+	http.Handle("/svs/trend/apx/view2", &TrendView{templates: []string{
+		"./templates/trend_apx2.page.html",
+		"./templates/base.layout.html",
+	},
+		cfg: h.cfg,
+	})
+
+	http.Handle("/svs/trend/highchart/view", &TrendView{templates: []string{
+		"./templates/trend_highchart.page.html",
+		"./templates/base.layout.html",
+	},
+		cfg: h.cfg,
+	})
+
+	http.Handle("/svs/signal/", &TrendView{templates: []string{
 		"./templates/datasignal.page.html",
 		"./templates/base.layout.html",
-	}})
+	},
+		cfg: h.cfg,
+	})
 
 	http.Handle("/svs/signals", &GroupSignalView{templates: []string{
 		"./templates/signals.page.html",

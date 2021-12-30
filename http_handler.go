@@ -252,7 +252,15 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type TrendView struct {
 	templates []string
+	cfg       *Config
 }
+
+/*func TrimSuffix(s, suffix string) string {
+	if strings.HasSuffix(s, suffix) {
+		s = s[:len(s)-len(suffix)]
+	}
+	return s
+}*/
 
 func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	/*	if r.URL.Path != "/" {
@@ -262,6 +270,29 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	get := r.URL.Query()
 	fmt.Printf("%v\n", get)
 	files := h.templates
+
+	title := ""
+	if len(get["title"]) > 0 {
+		title = get["title"][0]
+	}
+
+	cols := 1
+	if len(get["cols"]) > 0 {
+		v, err := strconv.ParseInt(get["cols"][0], 10, 32)
+		if err == nil {
+			cols = int(v)
+		}
+	}
+
+	height := "80"
+	if len(get["height"]) > 0 {
+		height = get["height"][0]
+	}
+
+	UseGroupChart := 0
+	if len(get["GroupChart"]) > 0 {
+		UseGroupChart = 1
+	}
 
 	signals := get["signalkey"]
 
@@ -283,15 +314,23 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
-		Title   string
-		Signals []string
-		Begin   int64
-		End     int64
+		Title         string
+		Signals       []string
+		Begin         int64
+		End           int64
+		TimeZone      string
+		Cols          int
+		Height        string
+		UseGroupChart int
 	}{
-		Title:   "My page",
-		Signals: signals,
-		Begin:   begin,
-		End:     end,
+		Title:         title,
+		Signals:       signals,
+		Begin:         begin,
+		End:           end,
+		TimeZone:      h.cfg.CONFIG.TimeZone,
+		Cols:          cols,
+		Height:        height,
+		UseGroupChart: UseGroupChart,
 	}
 	err = ts.Execute(w, data)
 	if err != nil {

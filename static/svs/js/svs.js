@@ -70,7 +70,6 @@ function DateToStrDate(date) {
 }
 
 $( document ).ready(function() {
-    let now = new Date();
     let dtbegin = new Date();
     dtbegin.setHours(0);
     dtbegin.setMinutes(0);

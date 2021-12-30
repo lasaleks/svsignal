@@ -168,7 +168,7 @@ func TestRmqSetSignal(t *testing.T) {
 
 	jData, _ := json.Marshal(setsig)
 	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
-		Exchange:     "svsingal",
+		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
 		Data:         jData,
@@ -204,7 +204,7 @@ func TestRmqSetSignal(t *testing.T) {
 
 	jData, _ = json.Marshal(setsig)
 	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
-		Exchange:     "svsingal",
+		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
 		Data:         jData,

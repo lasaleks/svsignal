@@ -30,7 +30,7 @@ type SVSignalDB struct {
 	CH_SET_SIGNAL   chan SetSignal
 	groups          map[string]svsignal_group
 	signals         map[string]*svsignal_signal
-	svalueint       map[string]SValueInt
+	svalueint       map[string]*SValueInt
 	svalueavg       map[string]*AVG
 	CH_REQUEST_HTTP chan interface{}
 	debug_level     int
@@ -41,7 +41,7 @@ func newSVS() *SVSignalDB {
 		CH_SAVE_VALUE:   make(chan ValueSignal, 1),
 		CH_SET_SIGNAL:   make(chan SetSignal, 1),
 		CH_REQUEST_HTTP: make(chan interface{}, 1),
-		svalueint:       make(map[string]SValueInt),
+		svalueint:       make(map[string]*SValueInt),
 		svalueavg:       make(map[string]*AVG),
 	}
 }
@@ -98,7 +98,15 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 						if ok {
 							name_group = group.name
 						}
-						request_data_signal(s.db, request.CH_RESPONSE, name_group, signal, request.begin, request.end, signal.type_save)
+						var value_signal *SValueInt
+						if signal.type_save == 1 {
+							value_signal = s.svalueint[signal_key]
+							if value_signal != nil {
+								value_signal = &SValueInt{value: value_signal.value, utime: value_signal.utime, offline: value_signal.offline}
+							}
+						}
+
+						request_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, signal.type_save)
 					}
 					break
 				}
@@ -158,22 +166,27 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	}
 	switch signal.type_save {
 	case 1:
+		valuei := int64(val.Value)
+		offline := int(val.Offline)
 		is_save := false
 		pvalue, ok := s.svalueint[sig_key]
 		if !ok {
 			is_save = true
+			pvalue = &SValueInt{value: valuei, offline: offline, utime: val.UTime}
+			s.svalueint[sig_key] = pvalue
 		}
-		if pvalue.offline != int(val.Offline) {
+		if pvalue.offline != offline {
 			is_save = true
 		}
-		valuei := int64(val.Value)
 		if pvalue.value != valuei {
 			is_save = true
 		}
 		if is_save {
-			s.svalueint[sig_key] = SValueInt{value: valuei, offline: int(val.Offline), utime: val.UTime}
-			insert_valuei(s.db, signal.id, valuei, val.UTime, val.Offline)
+			insert_valuei(s.db, signal.id, valuei, val.UTime, val.Offline, s.debug_level >= 6)
 		}
+		pvalue.value = valuei
+		pvalue.offline = offline
+		pvalue.utime = val.UTime
 	case 2:
 		is_save := false
 		avg, ok := s.svalueavg[sig_key]
@@ -191,7 +204,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 			value_avg, utime_avg, err := avg.calc_avg()
 			if err != nil {
 			} else {
-				err := insert_valuef(s.db, signal.id, value_avg, utime_avg, 0)
+				err := insert_valuef(s.db, signal.id, value_avg, utime_avg, 0, s.debug_level >= 6)
 				if err != nil {
 					fmt.Println("error insert fvalue", err)
 				}
@@ -204,7 +217,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	}
 }
 
-func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offline int64) error {
+func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offline int64, debug bool) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -220,7 +233,9 @@ func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offlin
 	}()
 
 	str_sql := "INSERT INTO svsignal_ivalue(signal_id, value, utime, offline) VALUES (?,?,?,?)"
-	//fmt.Println(str_sql, system_id, value, utime, offline)
+	if debug {
+		fmt.Println(str_sql, system_id, value, utime, offline)
+	}
 	if _, err := tx.Exec(str_sql, system_id, value, utime, offline); err != nil {
 		fmt.Println("Error", err)
 		return err
@@ -228,7 +243,7 @@ func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offlin
 	return nil
 }
 
-func insert_valuef(db *sql.DB, system_id int64, value float64, utime int64, offline int64) error {
+func insert_valuef(db *sql.DB, system_id int64, value float64, utime int64, offline int64, debug bool) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -244,7 +259,9 @@ func insert_valuef(db *sql.DB, system_id int64, value float64, utime int64, offl
 	}()
 
 	str_sql := "INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES (?,?,?,?)"
-	//fmt.Println(str_sql, system_id, value, utime, offline)
+	if debug {
+		fmt.Println(str_sql, system_id, value, utime, offline)
+	}
 	if _, err := tx.Exec(str_sql, system_id, value, utime, offline); err != nil {
 		fmt.Println("Error", err)
 		return err
@@ -433,7 +450,7 @@ func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
 	return &tags, nil
 }
 
-func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, begin int64, end int64, type_table int) {
+func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
 	/*
 		type_table 0 - none; 1 - svsignal_ivalue; 2 - svsignal_fvalue; 3 - svsignal_mvalue
 	*/
@@ -441,6 +458,7 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 		out <- fmt.Errorf("error request_data_signal signal:nil")
 		return
 	}
+
 	var sql string = ""
 	switch type_table {
 	case TYPE_IVALUE:
@@ -456,8 +474,22 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
 		return
 	}
+
 	var ivalues [][4]int64
 	var fvalues [][4]interface{}
+
+	if type_table == TYPE_IVALUE {
+		sql_begin := fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.id, begin, signal.id)
+		row := db.QueryRow(sql_begin)
+		if row != nil {
+			var ivalue [4]int64
+			err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+			if err == nil {
+				ivalues = append(ivalues, ivalue)
+			}
+		}
+	}
+
 	if sql != "" {
 		// fmt.Println(sql)
 		rows, err := db.Query(sql)
@@ -496,6 +528,29 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 			}
 		}
 	}
+
+	if type_table == TYPE_IVALUE {
+		sql_begin := fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime>%d and signal_id=%d)", signal.id, end, signal.id)
+		row := db.QueryRow(sql_begin)
+		if row != nil {
+			var ivalue [4]int64
+			err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+			if err == nil {
+				ivalues = append(ivalues, ivalue)
+			}
+		}
+		if value_signal_i != nil {
+			len := len(ivalues)
+			if len > 0 {
+				len--
+				if ivalues[len][1] < value_signal_i.utime && ivalues[len][2] == value_signal_i.value && ivalues[len][3] == int64(value_signal_i.offline) {
+					ivalues = append(ivalues, ivalues[len])
+					ivalues[len+1][1] = value_signal_i.utime
+				}
+			}
+		}
+	}
+
 	tags := []RLS_Tag{}
 	for _, tag := range *signal.tags {
 		tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
