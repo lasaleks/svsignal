@@ -356,7 +356,6 @@ func TestRequestDataT2Http(t *testing.T) {
 	var begin_id int64 = 1
 	var i int64
 	var value float32
-	fmt.Println("V", data_signal.Values)
 	for i = 0; i < 10; i++ {
 		value += 10.1
 		data_signal.Values = append(data_signal.Values, [4]interface{}{begin_id, begin_utime, value, 0})
