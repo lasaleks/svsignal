@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log"
 	"myutils"
-	"myutils/rabbitmq"
 	"sync"
 	"time"
 
+	gormq "bitbucket.org/lasaleks/go-rmq"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -74,7 +74,7 @@ func main() {
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
 
-	exchanges := []rabbitmq.ConsumerExchange{
+	exchanges := []gormq.ConsumerExchange{
 		{
 			Name:         "svsignal",
 			ExchangeType: "topic",
@@ -84,10 +84,9 @@ func main() {
 		},
 	}
 
-	consumer, err := rabbitmq.NewConsumer(cfg.CONFIG.RABBITMQ.URL, exchanges, cfg.CONFIG.RABBITMQ.QUEUE_NAME, "simple-consumer", hub.CH_MSG_AMPQ)
-	if err != nil {
-		log.Fatalf("ERROR %s", err)
-	}
+	consumer := gormq.NewConsumer(cfg.CONFIG.RABBITMQ.URL, exchanges, cfg.CONFIG.RABBITMQ.QUEUE_NAME, "simple-consumer", hub.CH_MSG_AMPQ)
+	wg.Add(1)
+	go consumer.RunHandleReconnect(&wg, cfg.CONFIG.RABBITMQ.URL)
 
 	//---http
 	http := HttpSrv{
@@ -108,7 +107,7 @@ func main() {
 
 	f_shutdown := func(ctx context.Context) {
 		fmt.Println("ShutDown")
-		err := consumer.Shutdown()
+		err := consumer.Close()
 		if err != nil {
 			log.Println("Consumer", err)
 		}

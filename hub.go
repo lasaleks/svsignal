@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"myutils/rabbitmq"
 	"regexp"
 	"sync"
+
+	gormq "bitbucket.org/lasaleks/go-rmq"
 )
 
 type Hub struct {
 	debug_level   int
-	CH_MSG_AMPQ   chan rabbitmq.MessageAmpq
+	CH_MSG_AMPQ   chan gormq.MessageAmpq
 	re_rkey       *regexp.Regexp
 	CH_SAVE_VALUE chan ValueSignal
 	CH_SET_SIGNAL chan SetSignal
@@ -20,7 +21,7 @@ func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
 	re_rkey, _ := regexp.Compile(`^svs\.(\w+)\.(\w+)\.(.+)$`)
 	return &Hub{
-		CH_MSG_AMPQ: make(chan rabbitmq.MessageAmpq, 1),
+		CH_MSG_AMPQ: make(chan gormq.MessageAmpq, 1),
 		re_rkey:     re_rkey,
 		//CH_REQUEST_HTTP: make(chan RequestHttp, 1),
 	}
