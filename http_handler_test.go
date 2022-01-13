@@ -560,7 +560,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 	value := 10.1
 	utime := 1637295512
 	offline := 0
-	url := fmt.Sprintf("http://localhost:8080/api/savevalue")
+	url := "http://localhost:8080/api/savevalue"
 
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, int(value), utime, offline).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -676,7 +676,7 @@ func TestHttpSetSignal(t *testing.T) {
 		},
 	}
 
-	url := fmt.Sprintf("http://localhost:8080/api/setsignal")
+	url := "http://localhost:8080/api/setsignal"
 
 	var tag_id int64 = 5
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)

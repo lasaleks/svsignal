@@ -81,7 +81,6 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 				switch request := msg.(type) {
 				case ReqListSignal:
 					request.CH_RR_LIST_SIGNAL <- *s.response_list_signal()
-					break
 				case ReqSignalData:
 					signal_key := fmt.Sprintf("%s.%s", request.groupkey, request.signalkey)
 					signal, ok := s.signals[signal_key]
@@ -108,7 +107,6 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 
 						request_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, signal.type_save)
 					}
-					break
 				}
 			}
 		}
@@ -160,7 +158,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	signal, ok := s.signals[sig_key]
 	if !ok {
 		if s.debug_level >= 1 {
-			fmt.Errorf("not found signal, key:%s", sig_key)
+			fmt.Printf("not found signal, key:%s", sig_key)
 		}
 		return
 	}
@@ -463,13 +461,10 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 	switch type_table {
 	case TYPE_IVALUE:
 		sql = fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
-		break
 	case TYPE_FVALUE:
 		sql = fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
-		break
 	case TYPE_MVALUE:
 		sql = fmt.Sprintf("SELECT id, utime, max, min, mean, median, offline FROM svsignal_mvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end)
-		break
 	default:
 		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
 		return
@@ -511,8 +506,8 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 				err = rows.Scan(&id, &utime, &fval, &offline)
 				fvalue[0], fvalue[1], fvalue[2], fvalue[3] = id, utime, fval, offline
 
-			case TYPE_MVALUE:
-				break
+				/*case TYPE_MVALUE:
+				break*/
 			}
 			if err != nil {
 				fmt.Println(err)
@@ -523,8 +518,8 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 				ivalues = append(ivalues, ivalue)
 			case TYPE_FVALUE:
 				fvalues = append(fvalues, fvalue)
-			case TYPE_MVALUE:
-				break
+				/*case TYPE_MVALUE:
+				break*/
 			}
 		}
 	}

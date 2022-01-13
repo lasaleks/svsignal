@@ -268,7 +268,6 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}*/
 	get := r.URL.Query()
-	fmt.Printf("%v\n", get)
 	files := h.templates
 
 	title := ""
@@ -348,8 +347,7 @@ func (h *GroupSignalView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}*/
-	get := r.URL.Query()
-	fmt.Printf("%v\n", get)
+	//get := r.URL.Query()
 	files := h.templates
 
 	ts, err := template.ParseFiles(files...)

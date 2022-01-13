@@ -78,9 +78,7 @@ func main() {
 		{
 			Name:         "svsignal",
 			ExchangeType: "topic",
-			Keys: []string{
-				fmt.Sprint("svs.*.*.#"),
-			},
+			Keys:         []string{"svs.*.*.#"},
 		},
 	}
 
