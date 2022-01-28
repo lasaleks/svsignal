@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Конфигурация
 type Config struct {
 	CONFIG struct {
 		ID_DRIVER   int `yaml:"id_driver"`
@@ -29,7 +30,9 @@ type Config struct {
 			User       string `yaml:"user"`
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
-		TimeZone string `yaml:"TimeZone"`
+		TimeZone          string `yaml:"TimeZone"`
+		MaxMultiplyInsert int    `yaml:"max_bulk_insert_size"`
+		BuffSize          int    `yaml:"buff_size"`
 	}
 }
 

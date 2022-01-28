@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -24,6 +25,12 @@ type SValueInt struct {
 	utime   int64
 }
 
+type SValueFloat struct {
+	value   float64
+	offline int
+	utime   int64
+}
+
 type SVSignalDB struct {
 	db              *sql.DB
 	CH_SAVE_VALUE   chan ValueSignal
@@ -34,20 +41,37 @@ type SVSignalDB struct {
 	svalueavg       map[string]*AVG
 	CH_REQUEST_HTTP chan interface{}
 	debug_level     int
+
+	// cache insert
+	max_multiply_insert int
+	cache_i             map[int64]*[]SValueInt
+	size_cache_i        int
+	cache_f             map[int64]*[]SValueFloat
+	size_cache_f        int
+	buff_size           int
 }
 
-func newSVS() *SVSignalDB {
+func newSVS(cfg Config) *SVSignalDB {
 	return &SVSignalDB{
-		CH_SAVE_VALUE:   make(chan ValueSignal, 1),
-		CH_SET_SIGNAL:   make(chan SetSignal, 1),
-		CH_REQUEST_HTTP: make(chan interface{}, 1),
-		svalueint:       make(map[string]*SValueInt),
-		svalueavg:       make(map[string]*AVG),
+		CH_SAVE_VALUE:       make(chan ValueSignal, 1),
+		CH_SET_SIGNAL:       make(chan SetSignal, 1),
+		CH_REQUEST_HTTP:     make(chan interface{}, 1),
+		svalueint:           make(map[string]*SValueInt),
+		svalueavg:           make(map[string]*AVG),
+		cache_i:             make(map[int64]*[]SValueInt),
+		cache_f:             make(map[int64]*[]SValueFloat),
+		max_multiply_insert: cfg.CONFIG.MaxMultiplyInsert,
+		buff_size:           cfg.CONFIG.BuffSize,
+		debug_level:         cfg.CONFIG.DEBUG_LEVEL,
 	}
 }
 
 func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
+	defer func() {
+		s.flush_cache(1)
+		s.flush_cache(2)
+	}()
 	groups, err := load_groups(s.db)
 	if err != nil {
 		log.Panicf("error load svsignal_systems %v", err)
@@ -105,7 +129,7 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 							}
 						}
 
-						request_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, signal.type_save)
+						s.get_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, signal.type_save)
 					}
 				}
 			}
@@ -115,7 +139,6 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 
 func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	lsig := ResponseListSignal{Groups: make(map[string]*RLS_Groups)}
-
 	for _, group := range s.groups {
 		lsig.Groups[group.group_key] = &RLS_Groups{Name: group.name, Signals: make(map[string]RLS_Signal)}
 	}
@@ -151,7 +174,7 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 func (s *SVSignalDB) save_value(val *ValueSignal) {
 	sig_key := fmt.Sprintf("%s.%s", val.group_key, val.signal_key)
 
-	if s.debug_level >= 4 {
+	if s.debug_level >= 6 {
 		log.Printf("SaveSignal:%s value:%v offline:%d utime:%d\n", sig_key, val.Value, val.Offline, val.UTime)
 	}
 
@@ -180,7 +203,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 			is_save = true
 		}
 		if is_save {
-			insert_valuei(s.db, signal.id, valuei, val.UTime, val.Offline, s.debug_level >= 6)
+			s.insert_valuei(s.db, signal.id, valuei, val.UTime, val.Offline, s.debug_level >= 6)
 		}
 		pvalue.value = valuei
 		pvalue.offline = offline
@@ -202,7 +225,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 			value_avg, utime_avg, err := avg.calc_avg()
 			if err != nil {
 			} else {
-				err := insert_valuef(s.db, signal.id, value_avg, utime_avg, 0, s.debug_level >= 6)
+				err := s.insert_valuef(s.db, signal.id, value_avg, utime_avg, 0, s.debug_level >= 6)
 				if err != nil {
 					fmt.Println("error insert fvalue", err)
 				}
@@ -215,8 +238,50 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	}
 }
 
-func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offline int64, debug bool) error {
-	tx, err := db.Begin()
+func setupBindVars(stmt, bindVars string, len int) string {
+	bindVars += ","
+	stmt = fmt.Sprintf(stmt, strings.Repeat(bindVars, len))
+	return strings.TrimSuffix(stmt, ",")
+}
+
+func (s *SVSignalDB) flush_cache(type_save int) error {
+	vals := []interface{}{}
+	var sql string
+	len_vals := 0
+	end_idx := func(len_arr int) int {
+		if len_arr >= s.max_multiply_insert {
+			return s.max_multiply_insert
+		}
+		return len_arr
+	}
+	switch type_save {
+	case 1:
+		for signal_id := range s.cache_i {
+			values := s.cache_i[signal_id]
+			for _, val := range (*values)[:end_idx(len(*values))] {
+				vals = append(vals, signal_id, val.value, val.utime, int(val.offline))
+				len_vals++
+			}
+		}
+		sql = setupBindVars("INSERT INTO svsignal_ivalue(signal_id, value, utime, offline) VALUES %s", "(?,?,?,?)", len_vals)
+	case 2:
+		for signal_id := range s.cache_f {
+			values := s.cache_f[signal_id]
+			for _, val := range (*values)[:end_idx(len(*values))] {
+				vals = append(vals, signal_id, val.value, val.utime, int(val.offline))
+				len_vals++
+			}
+		}
+		sql = setupBindVars("INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES %s", "(?,?,?,?)", len_vals)
+	default:
+		return fmt.Errorf("Error type save")
+	}
+
+	if s.debug_level >= 4 {
+		log.Println("Insert svsignal_ivalue len:", len_vals)
+	}
+
+	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
@@ -230,39 +295,67 @@ func insert_valuei(db *sql.DB, system_id int64, value int64, utime int64, offlin
 		}
 	}()
 
-	str_sql := "INSERT INTO svsignal_ivalue(signal_id, value, utime, offline) VALUES (?,?,?,?)"
-	if debug {
-		fmt.Println(str_sql, system_id, value, utime, offline)
-	}
-	if _, err := tx.Exec(str_sql, system_id, value, utime, offline); err != nil {
+	result, err := tx.Exec(sql, vals...)
+	if err != nil {
 		fmt.Println("Error", err)
 		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Println("Error", err)
+		return err
+	}
+	last_id, err := result.LastInsertId()
+	if err != nil {
+		fmt.Println("Error", err)
+		return err
+	}
+	/*if affected != int64(len(vals)) {
+	}*/
+	if s.debug_level >= 4 {
+		log.Println("Insert - RowsAffected", affected, "LastInsertId: ", last_id)
+	}
+	switch type_save {
+	case 1:
+		s.cache_i = make(map[int64]*[]SValueInt)
+		s.size_cache_i = 0
+	case 2:
+		s.cache_i = make(map[int64]*[]SValueInt)
+		s.size_cache_f = 0
+	}
+
+	return nil
+}
+
+func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, utime int64, offline int64, debug bool) error {
+	cache, ok := s.cache_i[signal_id]
+	if !ok {
+		cache = &[]SValueInt{{value: value, utime: utime, offline: int(offline)}}
+		s.cache_i[signal_id] = cache
+	} else {
+		*cache = append(*cache, SValueInt{value: value, utime: utime, offline: int(offline)})
+	}
+	s.size_cache_i++
+
+	if s.buff_size < (s.size_cache_i+s.size_cache_f) && s.size_cache_i >= s.max_multiply_insert {
+		s.flush_cache(1)
 	}
 	return nil
 }
 
-func insert_valuef(db *sql.DB, system_id int64, value float64, utime int64, offline int64, debug bool) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		switch err {
-		case nil:
-			err = tx.Commit()
-		default:
-			tx.Rollback()
+func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, utime int64, offline int64, debug bool) error {
+	cache, ok := s.cache_f[signal_id]
+	if !ok {
+		cache = &[]SValueFloat{
+			{value: value, utime: utime, offline: int(offline)},
 		}
-	}()
-
-	str_sql := "INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES (?,?,?,?)"
-	if debug {
-		fmt.Println(str_sql, system_id, value, utime, offline)
+		s.cache_f[signal_id] = cache
 	}
-	if _, err := tx.Exec(str_sql, system_id, value, utime, offline); err != nil {
-		fmt.Println("Error", err)
-		return err
+	*cache = append(*cache, SValueFloat{value: value, utime: utime, offline: int(offline)})
+	s.size_cache_f++
+
+	if s.buff_size < (s.size_cache_i+s.size_cache_f) && s.size_cache_f >= s.max_multiply_insert {
+		s.flush_cache(2)
 	}
 	return nil
 }
@@ -448,12 +541,249 @@ func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
 	return &tags, nil
 }
 
-func request_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
-	/*
-		type_table 0 - none; 1 - svsignal_ivalue; 2 - svsignal_fvalue; 3 - svsignal_mvalue
-	*/
+func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64) (*[][4]int64, error) {
+	ivalues := &[][4]int64{}
+
+	// определяем наличие данных в буффере на вставку
+	var firts_utime_in_cache *int64
+	var last_utime_in_cache *int64
+	cache, ok := s.cache_i[signal.id]
+	if ok {
+		len_cache := len(*cache)
+		if len_cache > 0 {
+			firts_utime_in_cache = &(*cache)[0].utime
+		}
+		if len_cache > 1 {
+			last_utime_in_cache = &(*cache)[len_cache-1].utime
+		}
+	}
+
+	add_data_from_buff := false
+	add_end_point := true
+	query_db_begin := true
+	query_db := true
+	query_db_end := true
+
+	if firts_utime_in_cache != nil && last_utime_in_cache != nil {
+		// читаем данные только из буффера
+		if begin >= *firts_utime_in_cache && begin < *last_utime_in_cache { // 1. begin >= first && begin < end
+			add_data_from_buff = true
+			query_db = false
+			query_db_end = false
+			if begin != *firts_utime_in_cache {
+				query_db_begin = false
+			}
+		} else if begin < *firts_utime_in_cache && end > *firts_utime_in_cache { // 2. begin < first && end > first
+			// читаем данные из БД и дополняем данными из буффера
+			add_data_from_buff = true
+			if end < *last_utime_in_cache {
+				query_db_end = false
+			}
+
+		} else if begin < *firts_utime_in_cache && end < *firts_utime_in_cache { // 3. begin < first && end < first
+			// читаем данные только из БД
+			add_data_from_buff = false
+		} else if begin > *firts_utime_in_cache && begin > *last_utime_in_cache { // 4. begin > firts && begin > last
+			add_data_from_buff = false
+		}
+	}
+
+	if query_db_begin {
+		// запрос значения до заданного периода begin-end
+		row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.id, begin, signal.id))
+		if row != nil {
+			var ivalue [4]int64
+			err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				*ivalues = append(*ivalues, ivalue)
+			}
+		}
+	}
+
+	if query_db {
+		// запрашиваем данные за период из бд
+		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end))
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var ivalue [4]int64
+			var err error
+			err = rows.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			*ivalues = append(*ivalues, ivalue)
+		}
+
+		if query_db_end {
+			// запрос значения после заданного периода begin-end
+			row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime>%d and signal_id=%d)", signal.id, end, signal.id))
+			if row != nil {
+				var ivalue [4]int64
+				err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
+				if err == nil {
+					*ivalues = append(*ivalues, ivalue)
+				} else {
+					if !add_data_from_buff && firts_utime_in_cache != nil {
+						value := (*cache)[0]
+						*ivalues = append(*ivalues, [4]int64{0, value.utime, value.value, int64(value.offline)})
+					}
+				}
+			}
+		}
+	}
+
+	if add_data_from_buff {
+		var prev_row *SValueInt
+		add_first := false
+		for idx, value := range *cache {
+			if begin <= value.utime {
+				if end >= value.utime {
+					if !query_db_begin && !add_first && prev_row != nil {
+						*ivalues = append(*ivalues, [4]int64{0, prev_row.utime, prev_row.value, int64(prev_row.offline)})
+						add_first = true
+					}
+					*ivalues = append(*ivalues, [4]int64{0, value.utime, value.value, int64(value.offline)})
+				} else {
+					add_end_point = false
+					*ivalues = append(*ivalues, [4]int64{0, value.utime, value.value, int64(value.offline)})
+					break
+				}
+			}
+			prev_row = &(*cache)[idx]
+		}
+	}
+
+	// задания дополнительной точки с временем равным полученному последнему значению.
+	if add_end_point && value_signal_i != nil {
+		len := len(*ivalues)
+		if len > 0 {
+			len--
+			if (*ivalues)[len][1] < value_signal_i.utime && (*ivalues)[len][2] == value_signal_i.value && (*ivalues)[len][3] == int64(value_signal_i.offline) {
+				*ivalues = append(*ivalues, (*ivalues)[len])
+				(*ivalues)[len+1][1] = value_signal_i.utime
+			}
+		}
+	}
+	return ivalues, nil
+}
+
+func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end int64) (*[][4]interface{}, error) {
+	fvalues := &[][4]interface{}{}
+
+	// определяем наличие данных в буффере на вставку
+	var firts_utime_in_cache *int64
+	var last_utime_in_cache *int64
+	cache, ok := s.cache_f[signal.id]
+	if ok {
+		len_cache := len(*cache)
+		if len_cache > 0 {
+			firts_utime_in_cache = &(*cache)[0].utime
+		}
+		if len_cache > 1 {
+			last_utime_in_cache = &(*cache)[len_cache-1].utime
+		}
+	}
+
+	add_data_of_buff := false
+	query_db := true
+
+	if firts_utime_in_cache != nil && last_utime_in_cache != nil {
+		if begin >= *firts_utime_in_cache && begin < *last_utime_in_cache { // 1. begin >= first && begin < end
+			add_data_of_buff = true
+			query_db = false
+			// читаем данные только из буффера
+		} else if begin < *firts_utime_in_cache && end > *firts_utime_in_cache { // 2. begin < first && end > first
+			add_data_of_buff = true
+			// читаем данные из БД и дополняем данными из буффера
+		} else if begin < *firts_utime_in_cache && end < *firts_utime_in_cache { // 3. begin < first && end < first
+			add_data_of_buff = false
+			// читаем данные только из БД
+		} else if begin > *firts_utime_in_cache && begin > *last_utime_in_cache { // 4. begin > firts && begin > last
+			add_data_of_buff = false
+		}
+	}
+	if !add_data_of_buff {
+		for _, value := range *cache {
+			if end >= value.utime {
+				var fvalue [4]interface{}
+				fvalue[0], fvalue[1], fvalue[2], fvalue[3] = 0, value.utime, value.value, value.offline
+				*fvalues = append(*fvalues, fvalue)
+			}
+		}
+	}
+
+	if query_db {
+		// запрашиваем данные за период из бд
+		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end))
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var fvalue [4]interface{}
+			var err error
+
+			var id, utime, offline int64
+			var fval float32
+			err = rows.Scan(&id, &utime, &fval, &offline)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			fvalue[0], fvalue[1], fvalue[2], fvalue[3] = id, utime, fval, offline
+			*fvalues = append(*fvalues, fvalue)
+		}
+	}
+
+	return fvalues, nil
+}
+
+func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
 	if signal == nil {
-		out <- fmt.Errorf("error request_data_signal signal:nil")
+		out <- fmt.Errorf("error get_data_signal signal:nil")
+		return
+	}
+	tags := []RLS_Tag{}
+	for _, tag := range *signal.tags {
+		tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+	}
+
+	switch type_table {
+	case TYPE_IVALUE:
+		ivalues, err := s.get_data_signal_i(signal, value_signal_i, begin, end)
+		if err != nil {
+			out <- fmt.Errorf("error key:%s %s", signal.signal_key, err)
+		} else {
+			out <- ResponseDataSignalT1{
+				GroupKey:   signal.group_key,
+				GroupName:  name_group,
+				SignalKey:  signal.signal_key,
+				SignalName: signal.name,
+				TypeSave:   type_table,
+				Values:     *ivalues,
+				Tags:       tags,
+			}
+		}
+	case TYPE_FVALUE:
+	case TYPE_MVALUE:
+	default:
+		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
+		return
+	}
+}
+
+/*
+func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
+	// type_table 0 - none; 1 - svsignal_ivalue; 2 - svsignal_fvalue; 3 - svsignal_mvalue
+	if signal == nil {
+		out <- fmt.Errorf("error get_data_signal signal:nil")
 		return
 	}
 
@@ -473,6 +803,35 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 	var ivalues [][4]int64
 	var fvalues [][4]interface{}
 
+	var firts_utime_in_cache *int64
+	var last_utime_in_cache *int64
+	// получаем период данных в кеше
+	switch type_table {
+	case TYPE_IVALUE:
+		cache, ok := s.cache_i[signal.id]
+		if ok {
+			len_cache := len(*cache)
+			if len_cache > 0 {
+				firts_utime_in_cache = &(*cache)[0].utime
+			}
+			if len_cache > 1 {
+				last_utime_in_cache = &(*cache)[len_cache-1].utime
+			}
+		}
+	case TYPE_FVALUE:
+		cache, ok := s.cache_f[signal.id]
+		if ok {
+			len_cache := len(*cache)
+			if len_cache > 0 {
+				firts_utime_in_cache = &(*cache)[0].utime
+			}
+			if len_cache > 1 {
+				last_utime_in_cache = &(*cache)[len_cache-1].utime
+			}
+		}
+	}
+
+	// запрос значения до заданного периода begin-end
 	if type_table == TYPE_IVALUE {
 		sql_begin := fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.id, begin, signal.id)
 		row := db.QueryRow(sql_begin)
@@ -506,8 +865,7 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 				err = rows.Scan(&id, &utime, &fval, &offline)
 				fvalue[0], fvalue[1], fvalue[2], fvalue[3] = id, utime, fval, offline
 
-				/*case TYPE_MVALUE:
-				break*/
+				//case TYPE_MVALUE:break
 			}
 			if err != nil {
 				fmt.Println(err)
@@ -518,13 +876,13 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 				ivalues = append(ivalues, ivalue)
 			case TYPE_FVALUE:
 				fvalues = append(fvalues, fvalue)
-				/*case TYPE_MVALUE:
-				break*/
+				//case TYPE_MVALUE:break
 			}
 		}
 	}
 
 	if type_table == TYPE_IVALUE {
+		// запрос значения после заданного периода begin-end
 		sql_begin := fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime>%d and signal_id=%d)", signal.id, end, signal.id)
 		row := db.QueryRow(sql_begin)
 		if row != nil {
@@ -534,6 +892,8 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 				ivalues = append(ivalues, ivalue)
 			}
 		}
+
+		// задания дополнительной точки с временем равным полученному последнему значению.
 		if value_signal_i != nil {
 			len := len(ivalues)
 			if len > 0 {
@@ -574,7 +934,7 @@ func request_data_signal(db *sql.DB, out chan interface{}, name_group string, si
 	case TYPE_MVALUE:
 		break
 	}
-}
+}*/
 
 func (s *SVSignalDB) set_signal(setsig SetSignal) {
 	group, ok := s.groups[setsig.group_key]

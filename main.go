@@ -52,13 +52,18 @@ func main() {
 	db.SetConnMaxLifetime(time.Minute * 3)
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
-	//
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
 	err = migratedb(db)
 	if err != nil {
 		panic(err)
 	}
 
-	savesignal := newSVS()
+	savesignal := newSVS(cfg)
 	savesignal.db = db
 	savesignal.debug_level = cfg.CONFIG.DEBUG_LEVEL
 	ctx_db, cancel_db := context.WithCancel(ctx)

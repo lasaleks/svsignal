@@ -46,7 +46,7 @@ func TestGetListHttp(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -151,7 +151,7 @@ func TestGetListHttp_Empty(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -298,7 +298,7 @@ func TestRequestDataT1Http(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -408,7 +408,7 @@ func TestRequestDataT2Http(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -482,7 +482,7 @@ func TestRequestSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -549,7 +549,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -621,7 +621,7 @@ func TestHttpSetSignal(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)

@@ -126,7 +126,7 @@ func TestRmqSetSignal(t *testing.T) {
 
 	// ch_ack := make(chan interface{}, 1)
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
