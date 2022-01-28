@@ -402,7 +402,7 @@ $(document).ready(function () {
                         site: site,
                     })
                     if (query_idx == Signals.length - 1) {
-                        $.getJSON('https://cdn.jsdelivr.net/npm/apexcharts/dist/locales/ru.json', function (ru) {
+                        $.getJSON('/static/apexcharts/locales/ru.json', function (ru) {
                             draw_trend(series, max_y, min_y, begin * 1000, end * 1000, ru);
                         });
                     }
@@ -410,7 +410,7 @@ $(document).ready(function () {
                 }.bind(this),
                 error: function (jqXHR, exception) {
                     if (query_idx == Signals.length - 1) {
-                        $.getJSON('https://cdn.jsdelivr.net/npm/apexcharts/dist/locales/ru.json', function (ru) {
+                        $.getJSON('/static/apexcharts/locales/ru.json', function (ru) {
                             draw_trend(series, max_y, min_y, begin * 1000, end * 1000, ru);
                         });
                     }
