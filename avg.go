@@ -2,6 +2,7 @@ package main
 
 import "fmt"
 
+// среднее значение по методу трапеций сумма по методу трапеций
 type AVG struct {
 	sum         float64
 	p_value     float64
@@ -23,15 +24,21 @@ func newAVG(period int, delta float32) *AVG {
 	}
 }
 
+// добавить значение
 func (a *AVG) add(value float64, utime int64) error {
 	if utime == 0 {
 		return error_utime_zero
 	}
 	if a.begin_utime == 0 {
+		// новый период
 		a.begin_utime = utime
 	} else {
-		a.sum += ((a.p_value + value) / 2) * float64(utime-a.p_utime)
+		if utime != a.p_utime {
+			a.sum += ((a.p_value + value) / 2) * float64(utime-a.p_utime)
+		}
+		// TODO если получили по времени такое же значение,
 	}
+	// сохраняем предыдущие значение
 	a.p_value = value
 	a.p_utime = utime
 	return nil
@@ -41,8 +48,10 @@ func (a *AVG) calc_avg() (float64, int64, error) {
 	if a.begin_utime == 0 {
 		return 0, 0, error_not_found
 	}
-	avg := a.sum / float64(a.p_utime-a.begin_utime)
-	return avg, (a.p_utime + a.begin_utime) / 2, nil
+	if a.p_utime == a.begin_utime {
+		return a.p_value, a.p_utime, nil
+	}
+	return a.sum / float64(a.p_utime-a.begin_utime), (a.p_utime + a.begin_utime) / 2, nil
 }
 
 func (a *AVG) is_delta() bool {

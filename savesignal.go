@@ -277,6 +277,10 @@ func (s *SVSignalDB) flush_cache(type_save int) error {
 		return fmt.Errorf("Error type save")
 	}
 
+	if len_vals == 0 {
+		return nil
+	}
+
 	if s.debug_level >= 4 {
 		log.Println("Insert svsignal_ivalue len:", len_vals)
 	}
@@ -328,6 +332,9 @@ func (s *SVSignalDB) flush_cache(type_save int) error {
 }
 
 func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, utime int64, offline int64, debug bool) error {
+	if s.debug_level >= 6 {
+		fmt.Println("insert_valuei", signal_id, value, utime, offline)
+	}
 	cache, ok := s.cache_i[signal_id]
 	if !ok {
 		cache = &[]SValueInt{{value: value, utime: utime, offline: int(offline)}}
@@ -344,14 +351,18 @@ func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, uti
 }
 
 func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, utime int64, offline int64, debug bool) error {
+	if s.debug_level >= 6 {
+		fmt.Println("insert_valuef", signal_id, value, utime, offline)
+	}
 	cache, ok := s.cache_f[signal_id]
 	if !ok {
 		cache = &[]SValueFloat{
 			{value: value, utime: utime, offline: int(offline)},
 		}
 		s.cache_f[signal_id] = cache
+	} else {
+		*cache = append(*cache, SValueFloat{value: value, utime: utime, offline: int(offline)})
 	}
-	*cache = append(*cache, SValueFloat{value: value, utime: utime, offline: int(offline)})
 	s.size_cache_f++
 
 	if s.buff_size < (s.size_cache_i+s.size_cache_f) && s.size_cache_f >= s.max_multiply_insert {
@@ -691,31 +702,22 @@ func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end
 		}
 	}
 
-	add_data_of_buff := false
+	add_data_from_buff := false
 	query_db := true
 
 	if firts_utime_in_cache != nil && last_utime_in_cache != nil {
+		// читаем данные только из буффера
 		if begin >= *firts_utime_in_cache && begin < *last_utime_in_cache { // 1. begin >= first && begin < end
-			add_data_of_buff = true
+			add_data_from_buff = true
 			query_db = false
-			// читаем данные только из буффера
 		} else if begin < *firts_utime_in_cache && end > *firts_utime_in_cache { // 2. begin < first && end > first
-			add_data_of_buff = true
 			// читаем данные из БД и дополняем данными из буффера
+			add_data_from_buff = true
 		} else if begin < *firts_utime_in_cache && end < *firts_utime_in_cache { // 3. begin < first && end < first
-			add_data_of_buff = false
 			// читаем данные только из БД
+			add_data_from_buff = false
 		} else if begin > *firts_utime_in_cache && begin > *last_utime_in_cache { // 4. begin > firts && begin > last
-			add_data_of_buff = false
-		}
-	}
-	if !add_data_of_buff {
-		for _, value := range *cache {
-			if end >= value.utime {
-				var fvalue [4]interface{}
-				fvalue[0], fvalue[1], fvalue[2], fvalue[3] = 0, value.utime, value.value, value.offline
-				*fvalues = append(*fvalues, fvalue)
-			}
+			add_data_from_buff = false
 		}
 	}
 
@@ -724,21 +726,31 @@ func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end
 		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end))
 		if err != nil {
 			fmt.Println(err)
+			return nil, err
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var fvalue [4]interface{}
-			var err error
 
 			var id, utime, offline int64
-			var fval float32
-			err = rows.Scan(&id, &utime, &fval, &offline)
+			var value float64
+			err := rows.Scan(&id, &utime, &value, &offline)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			fvalue[0], fvalue[1], fvalue[2], fvalue[3] = id, utime, fval, offline
-			*fvalues = append(*fvalues, fvalue)
+			*fvalues = append(*fvalues, [4]interface{}{id, utime, value, offline})
+		}
+	}
+
+	if add_data_from_buff {
+		for _, value := range *cache {
+			if begin <= value.utime {
+				if end >= value.utime {
+					*fvalues = append(*fvalues, [4]interface{}{0, value.utime, value.value, value.offline})
+				} else {
+					break
+				}
+			}
 		}
 	}
 
@@ -772,6 +784,20 @@ func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_grou
 			}
 		}
 	case TYPE_FVALUE:
+		fvalues, err := s.get_data_signal_f(signal, begin, end)
+		if err != nil {
+			out <- fmt.Errorf("error key:%s %s", signal.signal_key, err)
+		} else {
+			out <- ResponseDataSignalT2{
+				GroupKey:   signal.group_key,
+				GroupName:  name_group,
+				SignalKey:  signal.signal_key,
+				SignalName: signal.name,
+				TypeSave:   type_table,
+				Values:     *fvalues,
+				Tags:       tags,
+			}
+		}
 	case TYPE_MVALUE:
 	default:
 		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
