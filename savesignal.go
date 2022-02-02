@@ -294,17 +294,19 @@ func insert_values(db *sql.DB, sql string, values []interface{}) error {
 func write_buffer_i(db *sql.DB, buffer_i map[int64]*[]SValueInt, max_multiply_insert int) error {
 	values := make([]interface{}, max_multiply_insert*4)
 	len_vals := 0
+	rows := 0
 	stmt := "INSERT INTO svsignal_ivalue(signal_id, value, utime, offline) VALUES %s"
 	for signal_id := range buffer_i {
 		vals := (buffer_i)[signal_id]
 		for _, val := range *vals {
-			if len_vals/4 >= max_multiply_insert {
-				sql := setupBindVars(stmt, "(?,?,?,?)", len_vals)
+			if rows >= max_multiply_insert {
+				sql := setupBindVars(stmt, "(?,?,?,?)", rows)
 				err := insert_values(db, sql, values[0:len_vals])
 				if err != nil {
-					fmt.Println(err)
+					fmt.Printf("error insert rows:%d, %s", rows, err)
 				}
 				len_vals = 0
+				rows = 0
 			}
 			values[len_vals] = signal_id
 			len_vals++
@@ -314,16 +316,18 @@ func write_buffer_i(db *sql.DB, buffer_i map[int64]*[]SValueInt, max_multiply_in
 			len_vals++
 			values[len_vals] = int(val.offline)
 			len_vals++
+			rows++
 		}
 	}
 
 	if len_vals > 0 {
-		sql := setupBindVars(stmt, "(?,?,?,?)", len_vals)
+		sql := setupBindVars(stmt, "(?,?,?,?)", rows)
 		err := insert_values(db, sql, values[0:len_vals])
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("error insert rows:%d, %s", rows, err)
 		}
 		len_vals = 0
+		rows = 0
 	}
 
 	return nil
@@ -332,15 +336,20 @@ func write_buffer_i(db *sql.DB, buffer_i map[int64]*[]SValueInt, max_multiply_in
 func write_buffer_f(db *sql.DB, buffer_f map[int64]*[]SValueFloat, max_multiply_insert int) error {
 	values := make([]interface{}, max_multiply_insert*4)
 	len_vals := 0
-
+	rows := 0
+	stmt := "INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES %s"
 	for signal_id := range buffer_f {
 		vals := (buffer_f)[signal_id]
 		for _, val := range *vals {
 			if len_vals/4 >= max_multiply_insert {
 				if len_vals > 0 {
-					sql := setupBindVars("INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES %s", "(?,?,?,?)", len_vals)
-					insert_values(db, sql, values[0:len_vals])
+					sql := setupBindVars(stmt, "(?,?,?,?)", rows)
+					err := insert_values(db, sql, values[0:len_vals])
+					if err != nil {
+						fmt.Printf("error insert rows:%d, %s", rows, err)
+					}
 					len_vals = 0
+					rows = 0
 				}
 			}
 			values[len_vals] = signal_id
@@ -351,13 +360,18 @@ func write_buffer_f(db *sql.DB, buffer_f map[int64]*[]SValueFloat, max_multiply_
 			len_vals++
 			values[len_vals] = int(val.offline)
 			len_vals++
+			rows++
 		}
 	}
 
 	if len_vals > 0 {
-		sql := setupBindVars("INSERT INTO svsignal_fvalue(signal_id, value, utime, offline) VALUES %s", "(?,?,?,?)", len_vals)
-		insert_values(db, sql, values[0:len_vals])
+		sql := setupBindVars(stmt, "(?,?,?,?)", rows)
+		err := insert_values(db, sql, values[0:len_vals])
+		if err != nil {
+			fmt.Printf("error insert rows:%d, %s", rows, err)
+		}
 		len_vals = 0
+		rows = 0
 	}
 
 	return nil
@@ -380,6 +394,7 @@ func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, uti
 		buff := s.cache_i
 		write_buffer_i(s.db, buff, s.max_multiply_insert)
 		s.cache_i = make(map[int64]*[]SValueInt)
+		s.size_cache_i = 0
 	}
 	return nil
 }
@@ -403,6 +418,7 @@ func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, u
 		buff := s.cache_f
 		write_buffer_f(s.db, buff, s.max_multiply_insert)
 		s.cache_f = make(map[int64]*[]SValueFloat)
+		s.size_cache_f = 0
 	}
 	return nil
 }
