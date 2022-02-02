@@ -390,7 +390,7 @@ func TestMultiplyInsertDescreetValues(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 10
+	cfg.CONFIG.DEBUG_LEVEL = 0
 	cfg.CONFIG.MaxMultiplyInsert = 10
 	cfg.CONFIG.BuffSize = 10
 	savesignal := newSVS(cfg)
@@ -493,7 +493,7 @@ func TestQueryDescreetDataFromCache(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 10
+	cfg.CONFIG.DEBUG_LEVEL = 0
 	cfg.CONFIG.MaxMultiplyInsert = 10
 	savesignal := newSVS(cfg)
 	savesignal.db = db
@@ -823,7 +823,8 @@ func TestMultiplyInsertValuesAvg(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 10
+	cfg.CONFIG.DEBUG_LEVEL = 0
+	DEBUG_LEVEL = 0
 	cfg.CONFIG.MaxMultiplyInsert = 10
 	cfg.CONFIG.BuffSize = 10
 	savesignal := newSVS(cfg)
@@ -930,7 +931,7 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 10
+	cfg.CONFIG.DEBUG_LEVEL = 0
 	cfg.CONFIG.MaxMultiplyInsert = 10
 	cfg.CONFIG.BuffSize = 10
 	savesignal := newSVS(cfg)
@@ -986,7 +987,7 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 		response_compare ResponseDataSignalT2
 	}{
 		{
-			skip:            true,
+			skip:            false,
 			caseName:        "Проверка запроса данных за период, данные которого находятся полностью в буффере, из БД данные не запрашиваются",
 			signal_id:       2,
 			begin:           1636278240,

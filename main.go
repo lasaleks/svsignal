@@ -16,6 +16,8 @@ import (
 
 const VERSION = "v0.1 310121"
 
+var DEBUG_LEVEL = 0
+
 var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
 	pid_file    = flag.String("pid", "", "path pid file")
@@ -66,6 +68,7 @@ func main() {
 	savesignal := newSVS(cfg)
 	savesignal.db = db
 	savesignal.debug_level = cfg.CONFIG.DEBUG_LEVEL
+	DEBUG_LEVEL = cfg.CONFIG.DEBUG_LEVEL
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
@@ -123,4 +126,5 @@ func main() {
 	go myutils.WaitSignalExit(&wg, ctx, f_shutdown)
 	// ждем освобождение горутин
 	wg.Wait()
+	fmt.Println("End")
 }

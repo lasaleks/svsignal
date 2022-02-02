@@ -413,3 +413,20 @@ func (h *HTTPSetSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte{})
 }
+
+type SRV_STATUS struct {
+}
+
+func (g *SRV_STATUS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	http.Error(w, "Internal Server Error", 500)
+	/*	jData, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jData)*/
+}

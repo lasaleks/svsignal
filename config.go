@@ -31,7 +31,7 @@ type Config struct {
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
 		TimeZone          string `yaml:"TimeZone"`
-		MaxMultiplyInsert int    `yaml:"max_bulk_insert_size"`
+		MaxMultiplyInsert int    `yaml:"max_multiply_insert"`
 		BuffSize          int    `yaml:"buff_size"`
 	}
 }
