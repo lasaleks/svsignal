@@ -30,9 +30,10 @@ type Config struct {
 			User       string `yaml:"user"`
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
-		TimeZone          string `yaml:"TimeZone"`
-		MaxMultiplyInsert int    `yaml:"max_multiply_insert"`
-		BuffSize          int    `yaml:"buff_size"`
+		TimeZone             string `yaml:"TimeZone"`
+		BulkInsertBufferSize int    `yaml:"bulk_insert_buffer_size"`
+		BufferSize           int    `yaml:"buffer_size"`
+		PeriodSave           int64  `yaml:"period_save"`
 	}
 }
 

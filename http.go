@@ -100,7 +100,7 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 	http.Handle("/svs/api/getlistsignal", &GetListSignal{h.svsignal.CH_REQUEST_HTTP})
 	http.Handle("/svs/api/savevalue", &RequestSaveValue{CH_SAVE_VALUE: h.hub.CH_SAVE_VALUE, re_key: re_key})
 	http.Handle("/svs/api/setsignal", &HTTPSetSignal{CH_SET_SIGNAL: h.hub.CH_SET_SIGNAL, re_key: re_key})
-	http.Handle("/svs/api/getstatus", &SRV_STATUS{})
+	http.Handle("/svs/api/status", &SRV_STATUS{})
 
 	log.Printf("Starting Http Server at %s\n", h.Addr)
 	err := h.server.Serve(h.listen)

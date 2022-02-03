@@ -8,9 +8,24 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
+
+// Сбор статистики работы сервиса
+var SrvStatus struct {
+	ValuesInBuffer       int `json:"ValuesInBuffer"`       // кол-во значений в буффере
+	BufferSize           int `json:"BufferSize"`           // размер буффера
+	BulkInsertBufferSize int `json:"BulkInsertBufferSize"` //
+	PeriodSave           int `json:"PeriodSave"`           // период сохранения
+	NumberOfSaveValues   int `json:"NumberOfSaveValues"`   // кол-во полученных сохранений значений сигнала
+	NumberOfWriteValues  int `json:"NumberOfWriteValues"`  // кол-во сохраненных событий
+	//
+	HeapInuse    uint64 // количество байт, которые программа аллоцировала в динамической памяти
+	StackInuse   uint64 // количество памяти, которое находится на стеке
+	NumGoroutine int    //
+}
 
 const (
 	_ = iota
@@ -43,43 +58,57 @@ type SVSignalDB struct {
 	debug_level     int
 
 	// cache insert
-	max_multiply_insert int
-	cache_i             map[int64]*[]SValueInt
-	size_cache_i        int
-	cache_f             map[int64]*[]SValueFloat
-	size_cache_f        int
-	buff_size           int
+	bulk_insert_buffer_size int
+	buffer_size             int
+
+	buffer_write_i map[int64]*[]SValueInt
+	size_buffer_i  int
+	buffer_write_f map[int64]*[]SValueFloat
+	size_buffer_f  int
+	//
+	lt_save     int64 //  время сохранения
+	period_save int64
 }
 
 func newSVS(cfg Config) *SVSignalDB {
-	max_multiply_insert := 1
-	if cfg.CONFIG.MaxMultiplyInsert > 0 {
-		max_multiply_insert = cfg.CONFIG.MaxMultiplyInsert
+	bulk_insert_buffer_size := 1
+	if cfg.CONFIG.BulkInsertBufferSize > 0 {
+		bulk_insert_buffer_size = cfg.CONFIG.BulkInsertBufferSize
 	}
-	buff_size := 1
-	if cfg.CONFIG.BuffSize > 0 {
-		buff_size = cfg.CONFIG.BuffSize
+	buffer_size := 1
+	if cfg.CONFIG.BufferSize > 0 {
+		buffer_size = cfg.CONFIG.BufferSize
+	}
+	var period_save int64 = 1
+	if cfg.CONFIG.PeriodSave > 0 {
+		period_save = cfg.CONFIG.PeriodSave
 	}
 
+	SrvStatus.BufferSize = buffer_size
+	SrvStatus.BulkInsertBufferSize = bulk_insert_buffer_size
+	SrvStatus.PeriodSave = int(period_save)
+
 	return &SVSignalDB{
-		CH_SAVE_VALUE:       make(chan ValueSignal, 1),
-		CH_SET_SIGNAL:       make(chan SetSignal, 1),
-		CH_REQUEST_HTTP:     make(chan interface{}, 1),
-		svalueint:           make(map[string]*SValueInt),
-		svalueavg:           make(map[string]*AVG),
-		cache_i:             make(map[int64]*[]SValueInt),
-		cache_f:             make(map[int64]*[]SValueFloat),
-		max_multiply_insert: max_multiply_insert,
-		buff_size:           buff_size,
-		debug_level:         cfg.CONFIG.DEBUG_LEVEL,
+		CH_SAVE_VALUE:           make(chan ValueSignal, 1),
+		CH_SET_SIGNAL:           make(chan SetSignal, 1),
+		CH_REQUEST_HTTP:         make(chan interface{}, 1),
+		svalueint:               make(map[string]*SValueInt),
+		svalueavg:               make(map[string]*AVG),
+		buffer_write_i:          make(map[int64]*[]SValueInt),
+		buffer_write_f:          make(map[int64]*[]SValueFloat),
+		bulk_insert_buffer_size: bulk_insert_buffer_size,
+		buffer_size:             buffer_size,
+		debug_level:             cfg.CONFIG.DEBUG_LEVEL,
+		period_save:             period_save,
+		lt_save:                 time.Now().Unix(),
 	}
 }
 
 func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 	defer func() {
-		write_buffer_i(s.db, s.cache_i, s.max_multiply_insert)
-		write_buffer_f(s.db, s.cache_f, s.max_multiply_insert)
+		write_buffer_i(s.db, s.buffer_write_i, s.bulk_insert_buffer_size)
+		write_buffer_f(s.db, s.buffer_write_f, s.bulk_insert_buffer_size)
 		if s.debug_level >= 1 {
 			log.Println("SaveSignal End")
 		}
@@ -100,9 +129,21 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 		case <-ctx.Done():
 			//log.Println("SaveSignal run Done")
 			return
+		case <-time.After(time.Second * 1):
+			utime := time.Now().Unix()
+			if s.lt_save+s.period_save < utime {
+				write_buffer_i(s.db, s.buffer_write_i, s.bulk_insert_buffer_size)
+				write_buffer_f(s.db, s.buffer_write_f, s.bulk_insert_buffer_size)
+				s.lt_save = time.Now().Unix()
+				s.size_buffer_i = 0
+				s.size_buffer_f = 0
+				SrvStatus.ValuesInBuffer = 0
+			}
+			break
 		case msg, ok := <-s.CH_SAVE_VALUE:
 			if ok {
 				s.save_value(&msg)
+				SrvStatus.NumberOfSaveValues++
 			} else {
 				return
 			}
@@ -317,6 +358,7 @@ func write_buffer_i(db *sql.DB, buffer_i map[int64]*[]SValueInt, max_multiply_in
 			values[len_vals] = int(val.offline)
 			len_vals++
 			rows++
+			SrvStatus.NumberOfWriteValues++
 		}
 	}
 
@@ -361,6 +403,7 @@ func write_buffer_f(db *sql.DB, buffer_f map[int64]*[]SValueFloat, max_multiply_
 			values[len_vals] = int(val.offline)
 			len_vals++
 			rows++
+			SrvStatus.NumberOfWriteValues++
 		}
 	}
 
@@ -381,21 +424,23 @@ func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, uti
 	if s.debug_level >= 6 {
 		fmt.Println("insert_valuei", signal_id, value, utime, offline)
 	}
-	cache, ok := s.cache_i[signal_id]
+	cache, ok := s.buffer_write_i[signal_id]
 	if !ok {
 		cache = &[]SValueInt{{value: value, utime: utime, offline: int(offline)}}
-		s.cache_i[signal_id] = cache
+		s.buffer_write_i[signal_id] = cache
 	} else {
 		*cache = append(*cache, SValueInt{value: value, utime: utime, offline: int(offline)})
 	}
-	s.size_cache_i++
+	s.size_buffer_i++
 
-	if s.buff_size <= (s.size_cache_i+s.size_cache_f) && s.size_cache_i >= s.max_multiply_insert {
-		buff := s.cache_i
-		write_buffer_i(s.db, buff, s.max_multiply_insert)
-		s.cache_i = make(map[int64]*[]SValueInt)
-		s.size_cache_i = 0
+	if s.buffer_size <= (s.size_buffer_i+s.size_buffer_f) && s.size_buffer_i >= s.bulk_insert_buffer_size {
+		buff := s.buffer_write_i
+		write_buffer_i(s.db, buff, s.bulk_insert_buffer_size)
+		s.buffer_write_i = make(map[int64]*[]SValueInt)
+		s.size_buffer_i = 0
 	}
+
+	SrvStatus.ValuesInBuffer = s.size_buffer_i + s.size_buffer_f
 	return nil
 }
 
@@ -403,23 +448,25 @@ func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, u
 	if s.debug_level >= 6 {
 		fmt.Println("insert_valuef", signal_id, value, utime, offline)
 	}
-	cache, ok := s.cache_f[signal_id]
+	cache, ok := s.buffer_write_f[signal_id]
 	if !ok {
 		cache = &[]SValueFloat{
 			{value: value, utime: utime, offline: int(offline)},
 		}
-		s.cache_f[signal_id] = cache
+		s.buffer_write_f[signal_id] = cache
 	} else {
 		*cache = append(*cache, SValueFloat{value: value, utime: utime, offline: int(offline)})
 	}
-	s.size_cache_f++
+	s.size_buffer_f++
 
-	if s.buff_size <= (s.size_cache_i+s.size_cache_f) && s.size_cache_f >= s.max_multiply_insert {
-		buff := s.cache_f
-		write_buffer_f(s.db, buff, s.max_multiply_insert)
-		s.cache_f = make(map[int64]*[]SValueFloat)
-		s.size_cache_f = 0
+	if s.buffer_size <= (s.size_buffer_i+s.size_buffer_f) && s.size_buffer_f >= s.bulk_insert_buffer_size {
+		buff := s.buffer_write_f
+		write_buffer_f(s.db, buff, s.bulk_insert_buffer_size)
+		s.buffer_write_f = make(map[int64]*[]SValueFloat)
+		s.size_buffer_f = 0
 	}
+
+	SrvStatus.ValuesInBuffer = s.size_buffer_i + s.size_buffer_f
 	return nil
 }
 
@@ -610,7 +657,7 @@ func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *
 	// определяем наличие данных в буффере на вставку
 	var firts_utime_in_cache *int64
 	var last_utime_in_cache *int64
-	cache, ok := s.cache_i[signal.id]
+	cache, ok := s.buffer_write_i[signal.id]
 	if ok {
 		len_cache := len(*cache)
 		if len_cache > 0 {
@@ -741,7 +788,7 @@ func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end
 	// определяем наличие данных в буффере на вставку
 	var firts_utime_in_cache *int64
 	var last_utime_in_cache *int64
-	cache, ok := s.cache_f[signal.id]
+	cache, ok := s.buffer_write_f[signal.id]
 	if ok {
 		len_cache := len(*cache)
 		if len_cache > 0 {

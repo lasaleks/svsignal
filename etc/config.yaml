@@ -19,7 +19,8 @@ config:
     user: root
     password: 234123412
 
-  max_multiply_insert: 1000
-  buff_size: 10000
+  bulk_insert_buffer_size: 1000
+  buffer_size: 10000
+  period_save: 60
 
   TimeZone: Asia/Novokuznetsk

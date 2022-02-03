@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"text/template"
 )
@@ -422,11 +423,15 @@ func (g *SRV_STATUS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", 500)
 		return
 	}
-	http.Error(w, "Internal Server Error", 500)
-	/*	jData, err := json.Marshal(response)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(jData)*/
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	SrvStatus.HeapInuse = m.HeapInuse
+	SrvStatus.StackInuse = m.StackInuse
+	SrvStatus.NumGoroutine = runtime.NumGoroutine()
+	jData, err := json.Marshal(&SrvStatus)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jData)
 }
