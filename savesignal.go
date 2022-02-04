@@ -135,6 +135,8 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 				write_buffer_i(s.db, s.buffer_write_i, s.bulk_insert_buffer_size)
 				write_buffer_f(s.db, s.buffer_write_f, s.bulk_insert_buffer_size)
 				s.lt_save = time.Now().Unix()
+				s.buffer_write_i = make(map[int64]*[]SValueInt)
+				s.buffer_write_f = make(map[int64]*[]SValueFloat)
 				s.size_buffer_i = 0
 				s.size_buffer_f = 0
 				SrvStatus.ValuesInBuffer = 0
