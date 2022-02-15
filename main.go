@@ -14,7 +14,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const VERSION = "v0.1.1 30221"
+const VERSION = "v0.2 150221"
 
 var DEBUG_LEVEL = 0
 
