@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"regexp"
 	"sync"
 
@@ -58,7 +59,9 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 			return
 		case msg, ok := <-h.CH_MSG_AMPQ:
 			if ok {
-				//log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
+				if DEBUG_LEVEL >= 8 {
+					log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
+				}
 				ret_cmd := h.re_rkey.FindStringSubmatch(msg.Routing_key)
 				if len(ret_cmd) == 4 {
 					type_msg := ret_cmd[1]

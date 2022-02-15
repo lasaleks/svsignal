@@ -5,8 +5,8 @@ def set_attr_signal(signalkey, name, typesave, period, delta, tags):
     routing_key = f"svs.set.{signalkey}"
     json_data = json.dumps({
         'typesave': typesave,
-        'period': 60,
-        'delta': 10000,
+        'period': period,
+        'delta': delta,
         'name': name,
         'tags': tags
     })

@@ -19,7 +19,7 @@ var SrvStatus struct {
 	BufferSize           int `json:"BufferSize"`           // размер буффера
 	BulkInsertBufferSize int `json:"BulkInsertBufferSize"` //
 	PeriodSave           int `json:"PeriodSave"`           // период сохранения
-	NumberOfSaveValues   int `json:"NumberOfSaveValues"`   // кол-во полученных сохранений значений сигнала
+	RecvedValues         int `json:"RecvedValues"`         // кол-во полученных сохранений значений сигнала
 	NumberOfWriteValues  int `json:"NumberOfWriteValues"`  // кол-во сохраненных событий
 	//
 	HeapInuse    uint64 // количество байт, которые программа аллоцировала в динамической памяти
@@ -145,7 +145,7 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 		case msg, ok := <-s.CH_SAVE_VALUE:
 			if ok {
 				s.save_value(&msg)
-				SrvStatus.NumberOfSaveValues++
+				SrvStatus.RecvedValues++
 			} else {
 				return
 			}
@@ -228,6 +228,9 @@ func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 
 func (s *SVSignalDB) save_value(val *ValueSignal) {
 	sig_key := fmt.Sprintf("%s.%s", val.group_key, val.signal_key)
+	if DEBUG_LEVEL >= 8 {
+		log.Printf("save_value %s %+v", sig_key, val)
+	}
 
 	if s.debug_level >= 6 {
 		log.Printf("SaveSignal:%s value:%v offline:%d utime:%d\n", sig_key, val.Value, val.Offline, val.UTime)
@@ -264,34 +267,68 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 		pvalue.offline = offline
 		pvalue.utime = val.UTime
 	case 2:
-		is_save := false
 		avg, ok := s.svalueavg[sig_key]
 		if !ok {
 			avg = newAVG(signal.period, signal.delta)
 			s.svalueavg[sig_key] = avg
 		}
-		if avg.is_end_period(val.UTime) {
-			is_save = true
-		}
-		if avg.is_delta() {
-			is_save = true
-		}
-		if is_save {
-			value_avg, utime_avg, err := avg.calc_avg()
-			if err != nil {
-			} else {
-				err := s.insert_valuef(s.db, signal.id, value_avg, utime_avg, 0, s.debug_level >= 6)
-				if err != nil {
-					fmt.Println("error insert fvalue", err)
-				}
+		err, l_values := avg.add_value(SValueFloat{value: val.Value, utime: val.UTime, offline: int(val.Offline)})
+		if err != nil {
+			if DEBUG_LEVEL >= 1 {
+				log.Printf("error add_value %+v %s", val, err)
 			}
-			avg.set_new_period()
+			return
 		}
-		avg.add(val.Value, val.UTime)
+		for _, value := range l_values {
+			//fmt.Printf("insert_valuef: %+v\n", value)
+			s.insert_valuef(s.db, signal.id, value.value, value.utime, int64(value.offline))
+		}
 	case 3:
 		break
 	}
 }
+
+/*
+func (s *SVSignalDB) save_value_avg(sig_key *string, signal *svsignal_signal, val *ValueSignal) {
+	is_save := false
+	avg, ok := s.svalueavg[*sig_key]
+	if !ok {
+		avg = newAVG(signal.period, signal.delta)
+		s.svalueavg[*sig_key] = avg
+	}
+	reason_save := 0
+	if avg.is_end_period(val.UTime) {
+		is_save = true
+		reason_save = 1
+	} else if avg.is_delta_prev(val.Value) {
+		is_save = true
+		reason_save = 2
+	} else if avg.is_delta_avg(val.Value) {
+		reason_save = 3
+	}
+
+	if is_save {
+		err, calc_avg, value_avg, utime_avg := avg.calc_avg()
+
+		if err != nil {
+		} else {
+			switch reason_save {
+			case 2:
+				if calc_avg {
+					s.insert_valuef(s.db, signal.id, value_avg, utime_avg, 0)
+					s.insert_valuef(s.db, signal.id, avg.p_value, avg.p_utime, 0)
+				}
+				s.insert_valuef(s.db, signal.id, val.Value, val.UTime, 0)
+			case 3:
+
+			default:
+				s.insert_valuef(s.db, signal.id, value_avg, utime_avg, 0)
+			}
+		}
+		avg.set_new_period()
+	}
+	avg.add(val.Value, val.UTime)
+}*/
 
 func setupBindVars(stmt, bindVars string, len int) string {
 	bindVars += ","
@@ -446,8 +483,8 @@ func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, uti
 	return nil
 }
 
-func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, utime int64, offline int64, debug bool) error {
-	if s.debug_level >= 6 {
+func (s *SVSignalDB) insert_valuef(db *sql.DB, signal_id int64, value float64, utime int64, offline int64) error {
+	if DEBUG_LEVEL >= 6 {
 		fmt.Println("insert_valuef", signal_id, value, utime, offline)
 	}
 	cache, ok := s.buffer_write_f[signal_id]

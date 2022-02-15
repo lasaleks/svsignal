@@ -254,6 +254,198 @@ func TestSave2(t *testing.T) {
 	}
 }
 
+func TestSaveAVG_Delta(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"group_id", "group_key", "name"}).
+		AddRow(1, "Group", "Test")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "Group", "Test", "-", 2, 60, 10)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
+
+	for _, v := range []struct {
+		system_id int64
+		value     float64
+		utime     int64
+		offline   int
+	}{
+		{system_id: 1, value: 10, utime: 1636278100, offline: 0},
+		{system_id: 1, value: 14, utime: 1636278260, offline: 0},
+		{system_id: 1, value: 20, utime: 1636278290, offline: 0},
+		{system_id: 1, value: 18, utime: 1636278320, offline: 0},
+		{system_id: 1, value: 14, utime: 1636278340, offline: 0},
+		{system_id: 1, value: 4, utime: 1636278350, offline: 0},
+		{system_id: 1, value: 4, utime: 1636278385, offline: 0},
+	} {
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO svsignal_fvalue").WithArgs(v.system_id, v.value, v.utime, v.offline).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+	}
+
+	savesignal := newSVS(Config{})
+	savesignal.db = db
+	ctx_db, cancel_db := context.WithCancel(ctx)
+	wg.Add(1)
+	go savesignal.run(&wg, ctx_db)
+
+	for _, value := range []struct {
+		value   float64
+		utime   int64
+		offline int
+	}{
+		{value: 10, utime: 1636278100, offline: 0},
+		// new period
+		{value: 10, utime: 1636278240, offline: 0},
+		{value: 12, utime: 1636278250, offline: 0},
+		{value: 14, utime: 1636278260, offline: 0},
+		{value: 16, utime: 1636278270, offline: 0},
+		{value: 18, utime: 1636278280, offline: 0},
+		// delta avg
+		{value: 20, utime: 1636278290, offline: 0},
+		// new period
+		{value: 22, utime: 1636278300, offline: 0},
+		{value: 20, utime: 1636278310, offline: 0},
+		{value: 18, utime: 1636278320, offline: 0},
+		{value: 16, utime: 1636278330, offline: 0},
+		{value: 14, utime: 1636278340, offline: 0},
+		// delta prev value
+		{value: 4, utime: 1636278350, offline: 0},
+
+		{value: 4, utime: 1636278360, offline: 0},
+
+		{value: 4, utime: 1636278370, offline: 0},
+		{value: 4, utime: 1636278380, offline: 0},
+		{value: 4, utime: 1636278390, offline: 0},
+		{value: 4, utime: 1636278400, offline: 0},
+		{value: 4, utime: 1636278410, offline: 0},
+		{value: 4, utime: 1636278420, offline: 0},
+		{value: 4, utime: 1636278430, offline: 0},
+		{value: 4, utime: 1636278440, offline: 0},
+	} {
+		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+	}
+
+	for len(savesignal.CH_SAVE_VALUE) > 0 {
+		time.Sleep(time.Microsecond * 20)
+	}
+
+	close(savesignal.CH_SAVE_VALUE)
+	cancel_db()
+	wg.Wait()
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestSaveAVG_Offline(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"group_id", "group_key", "name"}).
+		AddRow(1, "Group", "Test")
+
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_group$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "signal_id", "tag", "value"})
+	mock.ExpectQuery("^SELECT (.+) FROM svsignal_tag$").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"id", "group_id", "group_key", "signal_key", "name", "type_save", "period", "delta"}).
+		AddRow(1, 1, "Group", "Test", "-", 2, 60, 10)
+	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
+
+	for _, v := range []struct {
+		system_id int64
+		value     float64
+		utime     int64
+		offline   int
+	}{
+		{system_id: 1, value: 10, utime: 1636278100, offline: 0},
+		{system_id: 1, value: 0, utime: 1636278600, offline: 1},
+		{system_id: 1, value: 0, utime: 1636279200, offline: 1},
+		{system_id: 1, value: 0, utime: 1636280000, offline: 1},
+		{system_id: 1, value: 10, utime: 1636280010, offline: 0},
+		{system_id: 1, value: 12.5, utime: 1636280025, offline: 0},
+		{system_id: 1, value: 19, utime: 1636280047, offline: 0},
+		{system_id: 1, value: 0, utime: 1636280060, offline: 1},
+	} {
+		mock.ExpectBegin()
+		mock.ExpectExec("INSERT INTO svsignal_fvalue").WithArgs(v.system_id, v.value, v.utime, v.offline).WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+	}
+
+	savesignal := newSVS(Config{})
+	savesignal.db = db
+	ctx_db, cancel_db := context.WithCancel(ctx)
+	wg.Add(1)
+	go savesignal.run(&wg, ctx_db)
+
+	for _, value := range []struct {
+		value   float64
+		utime   int64
+		offline int
+	}{
+		{value: 10, utime: 1636278100, offline: 0},
+		// new period
+		{value: 10, utime: 1636278200, offline: 0},
+		{value: 20, utime: 1636278300, offline: 1},
+		{value: 20, utime: 1636278400, offline: 1},
+		{value: 0, utime: 1636278500, offline: 1},
+		{value: 0, utime: 1636278600, offline: 1},
+		{value: 0, utime: 1636278700, offline: 1},
+		{value: 0, utime: 1636278800, offline: 1},
+		{value: 0, utime: 1636278800, offline: 1},
+		{value: 20, utime: 1636278900, offline: 1},
+		{value: 20, utime: 1636279100, offline: 1},
+		{value: 20, utime: 1636279200, offline: 1},
+		{value: 20, utime: 1636280000, offline: 1},
+		//Сохраняется значение, время полседнего сохр.зн > периода
+		{value: 10, utime: 1636280010, offline: 0},
+		{value: 20, utime: 1636280011, offline: 1},
+		{value: 20, utime: 1636280012, offline: 1},
+		//new period
+		{value: 10, utime: 1636280015, offline: 0},
+		{value: 12, utime: 1636280025, offline: 0},
+		{value: 16, utime: 1636280035, offline: 0},
+		{value: 18, utime: 1636280045, offline: 0},
+		{value: 20, utime: 1636280050, offline: 0},
+		{value: 0, utime: 1636280060, offline: 1},
+	} {
+		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+	}
+
+	for len(savesignal.CH_SAVE_VALUE) > 0 {
+		time.Sleep(time.Microsecond * 20)
+	}
+
+	close(savesignal.CH_SAVE_VALUE)
+	cancel_db()
+	wg.Wait()
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
 func TestSave3(t *testing.T) {
 	t.Skip()
 	var wg sync.WaitGroup
@@ -950,9 +1142,11 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 		{value: 20, utime: 1636278240, offline: 0},
 		{value: 30, utime: 1636278240, offline: 0},
 		{value: 40, utime: 1636278240, offline: 0},
+		// new period
 		{value: 20, utime: 1636278320, offline: 0},
+		// new period
 		{value: 50, utime: 1636278360, offline: 0},
-
+		// new period
 		{value: 0, utime: 1636278480, offline: 0},
 		{value: 10, utime: 1636278490, offline: 0},
 		{value: 20, utime: 1636278500, offline: 0},

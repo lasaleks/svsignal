@@ -171,6 +171,16 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CH_RESPONSE: CH_RESPONSE,
 	}
 	response := <-CH_RESPONSE
+	switch response.(type) {
+	case error:
+		fmt.Println(response)
+		http.Error(w, fmt.Sprintf("%v", response), 500)
+		return
+	case ResponseDataSignalT1:
+		break
+	case ResponseDataSignalT2:
+		break
+	}
 	jData, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
