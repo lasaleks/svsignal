@@ -9,6 +9,9 @@ function draw_trend(series, max_y, min_y, min_x, max_x) {
     var options = {
       series: series,
       chart: {
+        animations: {
+            enabled: false,
+        },
         locales: [ru],
         defaultLocale: 'ru',
         id: 'chart2',

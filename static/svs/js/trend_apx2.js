@@ -1,14 +1,31 @@
 var ru = null;
 var signal_charts = [];
 
-function create_chart(signal_key, series_name, series_data, series_color, site, max_y, min_y, min_x, max_x, ru) {
-    // console.log("create_chart:", signal_key, series_name, series_data, series_color, max_y, min_y, min_x, max_x, ru);
+function create_chart(signal_key, y_fixed, series_name, series_data, series_color, site, max_y, min_y, min_x, max_x, ru) {
+    // console.log("create_chart:", signal_key, series_name, series_color, max_y, min_y, min_x, max_x, ru, "series_data.length:", series_data.length);
+    f_y_axis_labels = {
+        formatter: function(val) {
+            return val;
+        }
+    }
+
+    if(y_fixed != null) {
+        f_y_axis_labels = {
+            formatter: function(val) {
+                return val.toFixed(y_fixed);
+            }
+        }
+    }
+
     var options = {
         series: [{
             data: series_data,
             name: series_name,
         }],
         chart: {
+            animations: {
+                enabled: false,
+            },
             redrawOnWindowResize: true,
             redrawOnParentResize: false,
             locales: [ru],
@@ -108,11 +125,7 @@ function create_chart(signal_key, series_name, series_data, series_color, site, 
             min: min_y,
             max: max_y,
             // decimalsInFloat: 1,
-            labels: {
-                formatter: function(val) {
-                    return val;
-                }
-            },
+            labels: f_y_axis_labels,
         },
         tooltip: {
             x: {
@@ -151,8 +164,8 @@ function create_chart(signal_key, series_name, series_data, series_color, site, 
     return chart
 }
 
-function update_chart(chart, signal_key, series_data, max_y, min_y, min_x, max_x) {
-    console.log("update_chart:", chart, signal_key, "series_data.length:", series_data.length);
+function update_chart(chart, y_fixed, signal_key, series_data, max_y, min_y, min_x, max_x) {
+    // console.log("update_chart:", chart, "signal_key:", signal_key, "max_y:", max_y, "min_y:", min_y, "min_x:", min_x, "max_x:", max_x, "series_data.length:", series_data.length);
     if (series_data.length > 0) {
         //options.chart.group = "general_timing"
         chart.updateSeries([{ data: series_data }])
@@ -195,7 +208,7 @@ function update_chart(chart, signal_key, series_data, max_y, min_y, min_x, max_x
                     min: min_x,
                     max: max_x,
                 },
-                yaxis: {
+                /*yaxis: {
                     title: {
                         text: "Значение"
                     },
@@ -207,7 +220,7 @@ function update_chart(chart, signal_key, series_data, max_y, min_y, min_x, max_x
                             return val;
                         }
                     },
-                },
+                },*/
                 chart: {
                     group: "general_timing",
                 },
@@ -219,14 +232,14 @@ function update_chart(chart, signal_key, series_data, max_y, min_y, min_x, max_x
     }
 }
 
-function draw_trend(series, max_y, min_y, min_x, max_x, ru) {
+function draw_trend(series, min_x, max_x, ru) {
     for (let i = 0; i < series.length; i++) {
         let sigchart = signal_charts[series[i].signal_key];
         if (sigchart === undefined) {
-            sigchart = create_chart(series[i].signal_key, series[i].name, series[i].data, series[i].series_color, series[i].site, max_y, min_y, min_x, max_x, ru);
+            sigchart = create_chart(series[i].signal_key, series[i].y_fixed, series[i].name, series[i].data, series[i].series_color, series[i].site, series[i].max_y, series[i].min_y, min_x, max_x, ru);
             signal_charts[series[i].signal_key] = sigchart;
         } else {
-            update_chart(sigchart, series[i].signal_key, series[i].data, max_y, min_y, min_x, max_x);
+            update_chart(sigchart, series[i].y_fixed, series[i].signal_key, series[i].data, series[i].max_y, series[i].min_y, min_x, max_x);
         }
     }
 }
@@ -333,7 +346,7 @@ $(document).ready(function () {
                     let max_y = undefined, min_y = undefined;
                     let series_color = undefined;
                     let site = "";
-                    //console.log('result:', result);
+                    let y_fixed = null;
                     for (let i = 0; i < result.tags.length; i++) {
                         switch (result.tags[i].tag) {
                             case 'max_y': {
@@ -359,6 +372,9 @@ $(document).ready(function () {
                             break;
                             case 'site':
                                 site = result.tags[i].value;
+                            break
+                            case 'y_fixed':
+                                y_fixed = result.tags[i].value;
                             break
                         }
                     }
@@ -396,6 +412,7 @@ $(document).ready(function () {
                         //lineWidth: 0.5,
                         signal_key: Signals[i],
                         name: result.signalname,
+                        y_fixed: y_fixed,
                         max_y: max_y,
                         min_y: min_y,
                         series_color: series_color,
@@ -403,7 +420,7 @@ $(document).ready(function () {
                     })
                     if (query_idx == Signals.length - 1) {
                         $.getJSON('/static/apexcharts/locales/ru.json', function (ru) {
-                            draw_trend(series, max_y, min_y, begin * 1000, end * 1000, ru);
+                            draw_trend(series, begin * 1000, end * 1000, ru);
                         });
                     }
                     query_idx++;
@@ -411,7 +428,7 @@ $(document).ready(function () {
                 error: function (jqXHR, exception) {
                     if (query_idx == Signals.length - 1) {
                         $.getJSON('/static/apexcharts/locales/ru.json', function (ru) {
-                            draw_trend(series, max_y, min_y, begin * 1000, end * 1000, ru);
+                            draw_trend(series, begin * 1000, end * 1000, ru);
                         });
                     }
                     query_idx++;

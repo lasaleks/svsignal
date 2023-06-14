@@ -266,6 +266,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 		pvalue.value = valuei
 		pvalue.offline = offline
 		pvalue.utime = val.UTime
+		log.Printf("save_value %s %+v pvalue:%+v", sig_key, val, pvalue)
 	case 2:
 		avg, ok := s.svalueavg[sig_key]
 		if !ok {
@@ -976,12 +977,17 @@ func (s *SVSignalDB) set_signal(setsig SetSignal) {
 		}
 		s.signals[sig_key] = signal
 	} else {
+		fmt.Printf("update signal %++v\n", setsig)
 		if signal.name != setsig.Name || signal.type_save != setsig.TypeSave || signal.period != setsig.Period || signal.delta != setsig.Delta {
 			err := update_signal(s.db, signal.id, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
 			if err != nil {
 				log.Println("Error update signal", setsig, err)
 				return
 			}
+			signal.name = setsig.Name
+			signal.type_save = setsig.TypeSave
+			signal.period = setsig.Period
+			signal.delta = setsig.Delta
 		}
 	}
 	if signal.tags == nil {

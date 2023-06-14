@@ -1,0 +1,1 @@
+go build -o bin/svsignal avg.go http.go main.go config.go http_handler.go hub.go migratedb.go savesignal.go

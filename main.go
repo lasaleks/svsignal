@@ -14,25 +14,33 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const VERSION = "v0.2 150221"
+const VERSION = "v0.2.1 230323"
 
 var DEBUG_LEVEL = 0
 
 var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
 	pid_file    = flag.String("pid", "", "path pid file")
+	get_version = flag.Bool("version", false, "version")
 )
 
 func main() {
-	fmt.Println("Start svsignal ver:", VERSION)
 
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
 	flag.Parse()
+
+	if *get_version {
+		fmt.Println("version:", VERSION)
+		return
+	}
+	fmt.Println("Start svsignal ver:", VERSION)
+
 	if len(*pid_file) > 0 {
 		myutils.CreatePidFile(*pid_file)
 	}
+
 	// загрузка конфигурации
 	var cfg Config
 	cfg.parseConfig(*config_file)

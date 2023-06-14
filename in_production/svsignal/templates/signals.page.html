@@ -1,0 +1,48 @@
+{{template "base" .}}
+ 
+{{define "title"}}Список сигналов{{end}}
+
+{{define "main"}}
+
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/series-label.js"></script>
+<script src="https://code.highcharts.com/modules/exporting.js"></script>
+<script src="https://code.highcharts.com/modules/export-data.js"></script>
+<script src="https://code.highcharts.com/modules/accessibility.js"></script>
+
+<style src="/static/bstreeview-1.2.0/css/bstreeview.min.css"></style>
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-2">
+      <div id="tree"></div>
+    </div>
+    <div class="col-10">
+      <div class="row">
+          <div class="col text-center p-2">
+            Период с: <input class="text-center" type="text" id="begin" value="">
+            по<input class="text-center" type="text" id="end" value="">
+            <button class="btn btn-sm btn-info m-0" id="btnQuery">Запрос данных</button>
+          </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <figure class="highcharts-figure">
+            <div id="trend"></div>
+            <p class="highcharts-description"></p>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/bstreeview-1.2.0/js/bstreeview.min.js"></script>
+
+<link rel="stylesheet" href="/static/datetimepicker/jquery.datetimepicker.min.css">
+<script type="text/javascript" src="/static/datetimepicker/jquery.datetimepicker.full.min.js"></script>
+
+<link href="/static/svs/css/svs.css"  rel="stylesheet">
+<script src="/static/svs/js/svs.js" type="text/javascript"></script>
+
+{{end}}

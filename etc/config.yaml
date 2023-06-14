@@ -1,5 +1,5 @@
 config:
-  debug_level: 10
+  debug_level: 0
   
   rabbitmq:
     url: amqp://rabbit:rabbitie@rabbitmq:5672/?heartbeat=10
