@@ -1,1 +1,5 @@
-go build -o bin/svsignal avg.go http.go main.go config.go http_handler.go hub.go migratedb.go savesignal.go
+#!/bin/bash
+
+VERSION=`git describe --tags`
+date=`date -u +%d%m%y.%H%M%S`
+go build -a -ldflags="-X main.VERSION=$VERSION -X main.BUILD=$date" -o bin/svsignal

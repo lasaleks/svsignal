@@ -6,15 +6,18 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"myutils"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/lasaleks/ie_common_utils_go"
 
 	gormq "bitbucket.org/lasaleks/go-rmq"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const VERSION = "v0.2.1 230323"
+var VERSION string
+var BUILD string
 
 var DEBUG_LEVEL = 0
 
@@ -30,15 +33,14 @@ func main() {
 	ctx := context.Background()
 
 	flag.Parse()
-
+	fmt.Println(VERSION+" build:", BUILD)
 	if *get_version {
-		fmt.Println("version:", VERSION)
 		return
 	}
-	fmt.Println("Start svsignal ver:", VERSION)
 
 	if len(*pid_file) > 0 {
-		myutils.CreatePidFile(*pid_file)
+		ie_common_utils_go.CreatePidFile(*pid_file)
+		defer os.Remove(*pid_file)
 	}
 
 	// загрузка конфигурации
@@ -131,7 +133,7 @@ func main() {
 
 	}
 	wg.Add(1)
-	go myutils.WaitSignalExit(&wg, ctx, f_shutdown)
+	go ie_common_utils_go.WaitSignalExit(&wg, ctx, f_shutdown)
 	// ждем освобождение горутин
 	wg.Wait()
 	fmt.Println("End")
