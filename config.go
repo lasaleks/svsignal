@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Конфигурация
 type Config struct {
 	CONFIG struct {
 		ID_DRIVER   int `yaml:"id_driver"`
@@ -24,10 +25,15 @@ type Config struct {
 			DATABASE string `yaml:"database"`
 		} `yaml:"mysql"`
 		HTTP *struct {
-			Address  string `yaml:"address"`
-			User     string `yaml:"user"`
-			Password string `yaml:"password"`
+			Address    string `yaml:"address"`
+			UnixSocket string `yaml:"unixsocket"`
+			User       string `yaml:"user"`
+			Password   string `yaml:"password"`
 		} `yaml:"http"`
+		TimeZone             string `yaml:"TimeZone"`
+		BulkInsertBufferSize int    `yaml:"bulk_insert_buffer_size"`
+		BufferSize           int    `yaml:"buffer_size"`
+		PeriodSave           int64  `yaml:"period_save"`
 	}
 }
 

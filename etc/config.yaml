@@ -1,5 +1,5 @@
 config:
-  debug_level: 4
+  debug_level: 0
   
   rabbitmq:
     url: amqp://rabbit:rabbitie@rabbitmq:5672/?heartbeat=10
@@ -14,6 +14,13 @@ config:
     database: insiteexpert_v4
 
   http:
-    address: :5501
+    # address: :5501
+    unixsocket: /usr/insiteexpert_v4/sock/svsignal.sock
     user: root
     password: 234123412
+
+  bulk_insert_buffer_size: 1000
+  buffer_size: 10000
+  period_save: 60
+
+  TimeZone: Asia/Novokuznetsk

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"text/template"
 )
@@ -170,6 +171,16 @@ func (g *RequestSignalData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		CH_RESPONSE: CH_RESPONSE,
 	}
 	response := <-CH_RESPONSE
+	switch response.(type) {
+	case error:
+		fmt.Println(response)
+		http.Error(w, fmt.Sprintf("%v", response), 500)
+		return
+	case ResponseDataSignalT1:
+		break
+	case ResponseDataSignalT2:
+		break
+	}
 	jData, err := json.Marshal(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -252,7 +263,15 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type TrendView struct {
 	templates []string
+	cfg       *Config
 }
+
+/*func TrimSuffix(s, suffix string) string {
+	if strings.HasSuffix(s, suffix) {
+		s = s[:len(s)-len(suffix)]
+	}
+	return s
+}*/
 
 func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	/*	if r.URL.Path != "/" {
@@ -260,8 +279,30 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}*/
 	get := r.URL.Query()
-	fmt.Printf("%v\n", get)
 	files := h.templates
+
+	title := ""
+	if len(get["title"]) > 0 {
+		title = get["title"][0]
+	}
+
+	cols := 1
+	if len(get["cols"]) > 0 {
+		v, err := strconv.ParseInt(get["cols"][0], 10, 32)
+		if err == nil {
+			cols = int(v)
+		}
+	}
+
+	height := "80"
+	if len(get["height"]) > 0 {
+		height = get["height"][0]
+	}
+
+	UseGroupChart := 0
+	if len(get["GroupChart"]) > 0 {
+		UseGroupChart = 1
+	}
 
 	signals := get["signalkey"]
 
@@ -283,15 +324,23 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
-		Title   string
-		Signals []string
-		Begin   int64
-		End     int64
+		Title         string
+		Signals       []string
+		Begin         int64
+		End           int64
+		TimeZone      string
+		Cols          int
+		Height        string
+		UseGroupChart int
 	}{
-		Title:   "My page",
-		Signals: signals,
-		Begin:   begin,
-		End:     end,
+		Title:         title,
+		Signals:       signals,
+		Begin:         begin,
+		End:           end,
+		TimeZone:      h.cfg.CONFIG.TimeZone,
+		Cols:          cols,
+		Height:        height,
+		UseGroupChart: UseGroupChart,
 	}
 	err = ts.Execute(w, data)
 	if err != nil {
@@ -309,8 +358,7 @@ func (h *GroupSignalView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}*/
-	get := r.URL.Query()
-	fmt.Printf("%v\n", get)
+	//get := r.URL.Query()
 	files := h.templates
 
 	ts, err := template.ParseFiles(files...)
@@ -375,4 +423,25 @@ func (h *HTTPSetSignal) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte{})
+}
+
+type SRV_STATUS struct {
+}
+
+func (g *SRV_STATUS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Internal Server Error", 500)
+		return
+	}
+	m := runtime.MemStats{}
+	runtime.ReadMemStats(&m)
+	SrvStatus.HeapInuse = m.HeapInuse
+	SrvStatus.StackInuse = m.StackInuse
+	SrvStatus.NumGoroutine = runtime.NumGoroutine()
+	jData, err := json.Marshal(&SrvStatus)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jData)
 }

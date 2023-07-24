@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"myutils/rabbitmq"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
+	gormq "bitbucket.org/lasaleks/go-rmq"
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
@@ -34,7 +34,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ := json.Marshal(val1)
 
-	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
+	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_rx",
 		Content_type: "text/plain",
@@ -50,7 +50,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ = json.Marshal(val2)
 
-	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
+	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_U",
 		Content_type: "text/plain",
@@ -66,7 +66,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ = json.Marshal(val3)
 
-	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
+	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_rx",
 		Content_type: "text/plain",
@@ -126,7 +126,7 @@ func TestRmqSetSignal(t *testing.T) {
 
 	// ch_ack := make(chan interface{}, 1)
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -167,8 +167,8 @@ func TestRmqSetSignal(t *testing.T) {
 	mock.ExpectCommit()
 
 	jData, _ := json.Marshal(setsig)
-	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
-		Exchange:     "svsingal",
+	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
 		Data:         jData,
@@ -203,8 +203,8 @@ func TestRmqSetSignal(t *testing.T) {
 	mock.ExpectCommit()
 
 	jData, _ = json.Marshal(setsig)
-	hub.CH_MSG_AMPQ <- rabbitmq.MessageAmpq{
-		Exchange:     "svsingal",
+	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
 		Data:         jData,

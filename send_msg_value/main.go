@@ -49,7 +49,7 @@ func main() {
 	fmt.Println("routing key:", rkey)
 	jData, _ := json.Marshal(val)
 
-	if err := publish(*url, "svsingal", "topic", rkey, string(jData), false); err != nil {
+	if err := publish(*url, "svsignal", "topic", rkey, string(jData), false); err != nil {
 		log.Fatalf("%s", err)
 	}
 	log.Printf("published %dB OK", len(jData))

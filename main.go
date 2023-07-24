@@ -6,31 +6,43 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"myutils"
-	"myutils/rabbitmq"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/lasaleks/ie_common_utils_go"
+
+	gormq "bitbucket.org/lasaleks/go-rmq"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-const VERSION = "0.0.2"
+var VERSION string
+var BUILD string
+
+var DEBUG_LEVEL = 0
 
 var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
 	pid_file    = flag.String("pid", "", "path pid file")
+	get_version = flag.Bool("version", false, "version")
 )
 
 func main() {
-	fmt.Println("Start svsignal ver:", VERSION)
 
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
 	flag.Parse()
-	if len(*pid_file) > 0 {
-		myutils.CreatePidFile(*pid_file)
+	fmt.Println(VERSION+" build:", BUILD)
+	if *get_version {
+		return
 	}
+
+	if len(*pid_file) > 0 {
+		ie_common_utils_go.CreatePidFile(*pid_file)
+		defer os.Remove(*pid_file)
+	}
+
 	// загрузка конфигурации
 	var cfg Config
 	cfg.parseConfig(*config_file)
@@ -52,11 +64,21 @@ func main() {
 	db.SetConnMaxLifetime(time.Minute * 3)
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
-	//
 
-	savesignal := newSVS()
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	err = migratedb(db)
+	if err != nil {
+		panic(err)
+	}
+
+	savesignal := newSVS(cfg)
 	savesignal.db = db
 	savesignal.debug_level = cfg.CONFIG.DEBUG_LEVEL
+	DEBUG_LEVEL = cfg.CONFIG.DEBUG_LEVEL
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
@@ -70,23 +92,29 @@ func main() {
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
 
-	exchanges := []rabbitmq.ConsumerExchange{
+	exchanges := []gormq.ConsumerExchange{
 		{
-			Name:         "svsingal",
+			Name:         "svsignal",
 			ExchangeType: "topic",
-			Keys: []string{
-				fmt.Sprint("svs.*.*.#"),
-			},
+			Keys:         []string{"svs.*.*.#"},
 		},
 	}
 
-	consumer, err := rabbitmq.NewConsumer(cfg.CONFIG.RABBITMQ.URL, exchanges, cfg.CONFIG.RABBITMQ.QUEUE_NAME, "simple-consumer", hub.CH_MSG_AMPQ)
-	if err != nil {
-		log.Fatalf("ERROR %s", err)
-	}
+	consumer := gormq.NewConsumer(cfg.CONFIG.RABBITMQ.URL, exchanges, cfg.CONFIG.RABBITMQ.QUEUE_NAME, "simple-consumer", hub.CH_MSG_AMPQ)
+	wg.Add(1)
+	go consumer.RunHandleReconnect(&wg, cfg.CONFIG.RABBITMQ.URL)
 
 	//---http
-	http := HttpSrv{Addr: cfg.CONFIG.HTTP.Address, svsignal: savesignal}
+	http := HttpSrv{
+		Addr:       cfg.CONFIG.HTTP.Address,
+		UnixSocket: cfg.CONFIG.HTTP.UnixSocket,
+		svsignal:   savesignal,
+		cfg:        &cfg,
+	}
+	err = http.initUnixSocketServer()
+	if err != nil {
+		panic(err)
+	}
 	http.hub = hub
 	http.svsignal = savesignal
 	wg.Add(1)
@@ -95,16 +123,18 @@ func main() {
 
 	f_shutdown := func(ctx context.Context) {
 		fmt.Println("ShutDown")
-		err := consumer.Shutdown()
-		cancel_hub()
-		cancel_db()
-		http.Close()
+		err := consumer.Close()
 		if err != nil {
 			log.Println("Consumer", err)
 		}
+		cancel_hub()
+		cancel_db()
+		http.Close()
+
 	}
 	wg.Add(1)
-	go myutils.WaitSignalExit(&wg, ctx, f_shutdown)
+	go ie_common_utils_go.WaitSignalExit(&wg, ctx, f_shutdown)
 	// ждем освобождение горутин
 	wg.Wait()
+	fmt.Println("End")
 }

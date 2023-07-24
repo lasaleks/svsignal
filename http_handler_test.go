@@ -46,7 +46,7 @@ func TestGetListHttp(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -151,7 +151,7 @@ func TestGetListHttp_Empty(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -290,15 +290,19 @@ func TestRequestDataT1Http(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 
+	mock.ExpectQuery(fmt.Sprintf("SELECT (.+) FROM svsignal_ivalue WHERE signal_id=%d and id=", 1)).WillReturnRows(sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"}))
+
 	rows = sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"})
 	for _, value := range data_signal.Values {
 		rows.AddRow(value[0], value[1], value[2], value[3])
 	}
 	mock.ExpectQuery("^SELECT (.+) FROM svsignal_ivalue WHERE signal_id=1 and utime >= 1636507647 and utime <=1636508647$").WillReturnRows(rows)
+
+	mock.ExpectQuery(fmt.Sprintf("SELECT (.+) FROM svsignal_ivalue WHERE signal_id=%d and id=", 1)).WillReturnRows(sqlmock.NewRows([]string{"id", "unixtime", "value", "offline"}))
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -337,6 +341,10 @@ func TestRequestDataT1Http(t *testing.T) {
 	cancel_db()
 	//cancel_hub()
 	wg.Wait()
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
 }
 
 func TestRequestDataT2Http(t *testing.T) {
@@ -355,8 +363,7 @@ func TestRequestDataT2Http(t *testing.T) {
 	var begin_utime int64 = begin
 	var begin_id int64 = 1
 	var i int64
-	var value float32
-	fmt.Println("V", data_signal.Values)
+	var value float64
 	for i = 0; i < 10; i++ {
 		value += 10.1
 		data_signal.Values = append(data_signal.Values, [4]interface{}{begin_id, begin_utime, value, 0})
@@ -409,7 +416,7 @@ func TestRequestDataT2Http(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -451,6 +458,10 @@ func TestRequestDataT2Http(t *testing.T) {
 	cancel_db()
 	//cancel_hub()
 	wg.Wait()
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
 }
 
 // TODO переписать тесты в один test case
@@ -483,7 +494,7 @@ func TestRequestSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -550,7 +561,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -560,7 +571,7 @@ func TestRequestPostSaveValue(t *testing.T) {
 	value := 10.1
 	utime := 1637295512
 	offline := 0
-	url := fmt.Sprintf("http://localhost:8080/api/savevalue")
+	url := "http://localhost:8080/api/savevalue"
 
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, int(value), utime, offline).WillReturnResult(sqlmock.NewResult(1, 1))
@@ -622,7 +633,7 @@ func TestHttpSetSignal(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS()
+	savesignal := newSVS(Config{})
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -676,7 +687,7 @@ func TestHttpSetSignal(t *testing.T) {
 		},
 	}
 
-	url := fmt.Sprintf("http://localhost:8080/api/setsignal")
+	url := "http://localhost:8080/api/setsignal"
 
 	var tag_id int64 = 5
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)

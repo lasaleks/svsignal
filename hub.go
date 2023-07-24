@@ -3,14 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"myutils/rabbitmq"
+	"log"
 	"regexp"
 	"sync"
+
+	gormq "bitbucket.org/lasaleks/go-rmq"
 )
 
 type Hub struct {
 	debug_level   int
-	CH_MSG_AMPQ   chan rabbitmq.MessageAmpq
+	CH_MSG_AMPQ   chan gormq.MessageAmpq
 	re_rkey       *regexp.Regexp
 	CH_SAVE_VALUE chan ValueSignal
 	CH_SET_SIGNAL chan SetSignal
@@ -20,7 +22,7 @@ func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
 	re_rkey, _ := regexp.Compile(`^svs\.(\w+)\.(\w+)\.(.+)$`)
 	return &Hub{
-		CH_MSG_AMPQ: make(chan rabbitmq.MessageAmpq, 1),
+		CH_MSG_AMPQ: make(chan gormq.MessageAmpq, 1),
 		re_rkey:     re_rkey,
 		//CH_REQUEST_HTTP: make(chan RequestHttp, 1),
 	}
@@ -36,7 +38,7 @@ type SetSignal struct {
 	Tags       []struct {
 		Tag   string `json:"tag"`
 		Value string `json:"value"`
-	}
+	} `json:"tags"`
 }
 
 type ValueSignal struct {
@@ -57,7 +59,9 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 			return
 		case msg, ok := <-h.CH_MSG_AMPQ:
 			if ok {
-				//log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
+				if DEBUG_LEVEL >= 8 {
+					log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
+				}
 				ret_cmd := h.re_rkey.FindStringSubmatch(msg.Routing_key)
 				if len(ret_cmd) == 4 {
 					type_msg := ret_cmd[1]
