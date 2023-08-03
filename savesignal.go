@@ -266,7 +266,9 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 		pvalue.value = valuei
 		pvalue.offline = offline
 		pvalue.utime = val.UTime
-		log.Printf("save_value %s %+v pvalue:%+v", sig_key, val, pvalue)
+		if DEBUG_LEVEL >= 8 {
+			log.Printf("save_value %s %+v pvalue:%+v", sig_key, val, pvalue)
+		}
 	case 2:
 		avg, ok := s.svalueavg[sig_key]
 		if !ok {
