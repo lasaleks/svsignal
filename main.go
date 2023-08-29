@@ -111,6 +111,9 @@ func main() {
 		},
 		hub.CH_MSG_AMPQ,
 	)
+	if err != nil {
+		log.Panicln("consumer error\n", err)
+	}
 
 	//---http
 	http := HttpSrv{
