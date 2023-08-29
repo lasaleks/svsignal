@@ -1,7 +1,3 @@
-bitbucket.org/lasaleks/go-rmq v0.0.0-20220824180258-d52c2739f181 h1:heSugfW1oxiiWO5hV1UG2TfTK3ho8vS3ArDO3ColxjY=
-bitbucket.org/lasaleks/go-rmq v0.0.0-20220824180258-d52c2739f181/go.mod h1:R3IjG14CG76Pg/7TqYxF2uLGMHBG98AQPRd8etNWd7k=
-bitbucket.org/lasaleks/gormq3 v1.0.1 h1:PWg/kJ2lL18Ju4W3MC+OrHUxMvR5gR0BE/+XzFaOX2I=
-bitbucket.org/lasaleks/gormq3 v1.0.1/go.mod h1:JRpHEaujQ77kL1F94iE070PTyntltl1YwN4YfdX2aqA=
 github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
 github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -13,13 +9,13 @@ github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORN
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/lasaleks/ie_common_utils_go v1.0.2 h1:39t7XI55gGk3Yl5z4UDhCgWZKJwFWXkzCnrmVumRO+8=
-github.com/lasaleks/ie_common_utils_go v1.0.2/go.mod h1:g9gcMO3co0CktRsdihSJxOWqPBvV/Bak/2QFwNemyPQ=
+github.com/lasaleks/gormq v1.0.3 h1:VA7nxiSz4eWQd0YlCCfCKYzi8IT6xdQrNcDULkjltZw=
+github.com/lasaleks/gormq v1.0.3/go.mod h1:sLKM8MGKd8XrysMs59JyjvsXRlj3za4y9c2/JkOlBv8=
+github.com/lasaleks/ie_common_utils_go v1.0.3 h1:dR1KtGEYfIK81Nb6h5R5Ox1+PjIJTUG0Ip1pl/vY7vY=
+github.com/lasaleks/ie_common_utils_go v1.0.3/go.mod h1:ddpQzHBFg9rFMnE4K+AFkrbo1Y7ZbR8f7+zmPDhAHP8=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rabbitmq/amqp091-go v1.8.1 h1:RejT1SBUim5doqcL6s7iN6SBmsQqyTgXb1xMlH0h1hA=
 github.com/rabbitmq/amqp091-go v1.8.1/go.mod h1:+jPrT9iY2eLjRaMSRHUhc3z14E/l85kv/f+6luSD3pc=
-github.com/streadway/amqp v1.1.0 h1:py12iX8XSyI7aN/3dUT8DFIDJazNJsVJdxNVEpnQTZM=
-github.com/streadway/amqp v1.1.0/go.mod h1:WYSrTEYHOXHd0nwFeUXAe2G2hRnQT+deZJJf88uS9Bg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=

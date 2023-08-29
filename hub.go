@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"sync"
 
-	gormq "bitbucket.org/lasaleks/go-rmq"
+	"github.com/lasaleks/gormq"
 )
 
 type Hub struct {

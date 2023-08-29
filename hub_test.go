@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	gormq "bitbucket.org/lasaleks/go-rmq"
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lasaleks/gormq"
 )
 
 func TestHubRun(t *testing.T) {

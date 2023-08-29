@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"bitbucket.org/lasaleks/gormq3"
+	"github.com/lasaleks/gormq"
 )
 
 type Tags struct {
@@ -23,7 +23,7 @@ const (
 	SVS_TYPE_SAVE_AVG      = 2
 )
 
-func PubSaveValue(out chan<- gormq3.MessageAmpq, signal_key string, value float64, utime int64, offline int) error {
+func PubSaveValue(out chan<- gormq.MessageAmpq, signal_key string, value float64, utime int64, offline int) error {
 	data, err := json.Marshal(&ValueSignal{
 		Value:   value,
 		UTime:   utime,
@@ -32,7 +32,7 @@ func PubSaveValue(out chan<- gormq3.MessageAmpq, signal_key string, value float6
 	if err != nil {
 		return err
 	}
-	out <- gormq3.MessageAmpq{
+	out <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  fmt.Sprintf("svs.save.%s", signal_key),
 		Content_type: "text/plain",
@@ -51,7 +51,7 @@ type SetSignal struct {
 	Tags       []Tags  `json:"tags"`
 }
 
-func PubSetSVSignal(out chan<- gormq3.MessageAmpq, signal_key string, typesave int, period int, delta float32, name string, tags []Tags) error {
+func PubSetSVSignal(out chan<- gormq.MessageAmpq, signal_key string, typesave int, period int, delta float32, name string, tags []Tags) error {
 	data, err := json.Marshal(&SetSignal{
 		TypeSave: typesave,
 		Period:   period,
@@ -63,7 +63,7 @@ func PubSetSVSignal(out chan<- gormq3.MessageAmpq, signal_key string, typesave i
 		return err
 	}
 
-	out <- gormq3.MessageAmpq{
+	out <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  fmt.Sprintf("svs.set.%s", signal_key),
 		Content_type: "text/plain",

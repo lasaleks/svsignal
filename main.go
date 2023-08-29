@@ -12,8 +12,8 @@ import (
 
 	"github.com/lasaleks/ie_common_utils_go"
 
-	gormq "bitbucket.org/lasaleks/go-rmq"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/lasaleks/gormq"
 )
 
 var VERSION string
@@ -92,17 +92,25 @@ func main() {
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
 
-	exchanges := []gormq.ConsumerExchange{
-		{
-			Name:         "svsignal",
-			ExchangeType: "topic",
-			Keys:         []string{"svs.*.*.#"},
-		},
+	conn_rmq, err := gormq.NewConnect(cfg.CONFIG.RABBITMQ.URL)
+	if err != nil {
+		log.Panicln("connect rabbitmq", err)
 	}
 
-	consumer := gormq.NewConsumer(cfg.CONFIG.RABBITMQ.URL, exchanges, cfg.CONFIG.RABBITMQ.QUEUE_NAME, "simple-consumer", hub.CH_MSG_AMPQ)
-	wg.Add(1)
-	go consumer.RunHandleReconnect(&wg, cfg.CONFIG.RABBITMQ.URL)
+	chCons, err := gormq.NewChannelConsumer(
+		&wg, conn_rmq, []gormq.ExhangeOptions{
+			{
+				Name:         "svsignal",
+				ExchangeType: "topic",
+				Keys:         []string{"svs.*.*.#"},
+			},
+		},
+		gormq.QueueOption{
+			QOS:  cfg.CONFIG.RABBITMQ.QOS,
+			Name: cfg.CONFIG.RABBITMQ.QUEUE_NAME,
+		},
+		hub.CH_MSG_AMPQ,
+	)
 
 	//---http
 	http := HttpSrv{
@@ -123,10 +131,10 @@ func main() {
 
 	f_shutdown := func(ctx context.Context) {
 		fmt.Println("ShutDown")
-		err := consumer.Close()
-		if err != nil {
-			log.Println("Consumer", err)
-		}
+		// close rabbitmq
+		conn_rmq.Close()
+		chCons.Close()
+
 		cancel_hub()
 		cancel_db()
 		http.Close()
