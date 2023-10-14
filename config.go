@@ -45,6 +45,7 @@ func (conf *Config) ParseConfig(config_file string) error {
 	}
 	if err = conf.CONFIG_SERVER.ParseConfig(conf.SERVER_PATH_CFG); err != nil {
 		return errors.Join(fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
+		//return fmt.Errorf("%w; %w", fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
 	}
 	return nil
 }

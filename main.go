@@ -45,7 +45,7 @@ func main() {
 	// загрузка конфигурации
 	var cfg Config
 	if err := cfg.ParseConfig(*config_file); err != nil {
-		log.Panicf("file %s parse config error %v", *config_file, err)
+		log.Panicln(err)
 	}
 	fmt.Printf("%+v\n", cfg)
 
