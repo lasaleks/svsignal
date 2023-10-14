@@ -10,9 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lasaleks/ie_common_utils_go"
-
 	_ "github.com/go-sql-driver/mysql"
+	goutils "github.com/lasaleks/go-utils"
 	"github.com/lasaleks/gormq"
 )
 
@@ -39,7 +38,7 @@ func main() {
 	}
 
 	if len(*pid_file) > 0 {
-		ie_common_utils_go.CreatePidFile(*pid_file)
+		goutils.CreatePidFile(*pid_file)
 		defer os.Remove(*pid_file)
 	}
 
@@ -146,7 +145,7 @@ func main() {
 
 	}
 	wg.Add(1)
-	go ie_common_utils_go.WaitSignalExit(&wg, ctx, f_shutdown)
+	go goutils.WaitSignalExit(&wg, ctx, f_shutdown)
 	// ждем освобождение горутин
 	wg.Wait()
 	fmt.Println("End")
