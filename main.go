@@ -45,11 +45,13 @@ func main() {
 
 	// загрузка конфигурации
 	var cfg Config
-	cfg.parseConfig(*config_file)
-	fmt.Println(cfg)
+	if err := cfg.ParseConfig(*config_file); err != nil {
+		log.Panicf("file %s parse config error %v", *config_file, err)
+	}
+	fmt.Printf("%+v\n", cfg)
 
 	// connect DB
-	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.CONFIG.MYSQL.USER, cfg.CONFIG.MYSQL.PASSWORD, cfg.CONFIG.MYSQL.HOST, cfg.CONFIG.MYSQL.PORT, cfg.CONFIG.MYSQL.DATABASE)
+	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.CONFIG_SERVER.MYSQL.USER, cfg.CONFIG_SERVER.MYSQL.PASSWORD, cfg.CONFIG_SERVER.MYSQL.HOST, cfg.CONFIG_SERVER.MYSQL.PORT, cfg.CONFIG_SERVER.MYSQL.DATABASE)
 	fmt.Println(uri)
 	var err error
 
@@ -77,8 +79,8 @@ func main() {
 
 	savesignal := newSVS(cfg)
 	savesignal.db = db
-	savesignal.debug_level = cfg.CONFIG.DEBUG_LEVEL
-	DEBUG_LEVEL = cfg.CONFIG.DEBUG_LEVEL
+	savesignal.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
+	DEBUG_LEVEL = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
 	go savesignal.run(&wg, ctx_db)
@@ -87,12 +89,12 @@ func main() {
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
 	hub.CH_SET_SIGNAL = savesignal.CH_SET_SIGNAL
 	//hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
-	hub.debug_level = cfg.CONFIG.DEBUG_LEVEL
+	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
 
-	conn_rmq, err := gormq.NewConnect(cfg.CONFIG.RABBITMQ.URL)
+	conn_rmq, err := gormq.NewConnect(cfg.SVSIGNAL.RABBITMQ.URL)
 	if err != nil {
 		log.Panicln("connect rabbitmq", err)
 	}
@@ -106,8 +108,8 @@ func main() {
 			},
 		},
 		gormq.QueueOption{
-			QOS:  cfg.CONFIG.RABBITMQ.QOS,
-			Name: cfg.CONFIG.RABBITMQ.QUEUE_NAME,
+			QOS:  cfg.SVSIGNAL.RABBITMQ.QOS,
+			Name: cfg.SVSIGNAL.RABBITMQ.QUEUE_NAME,
 		},
 		hub.CH_MSG_AMPQ,
 	)
@@ -117,8 +119,8 @@ func main() {
 
 	//---http
 	http := HttpSrv{
-		Addr:       cfg.CONFIG.HTTP.Address,
-		UnixSocket: cfg.CONFIG.HTTP.UnixSocket,
+		Addr:       cfg.SVSIGNAL.HTTP.Address,
+		UnixSocket: cfg.SVSIGNAL.HTTP.UnixSocket,
 		svsignal:   savesignal,
 		cfg:        &cfg,
 	}

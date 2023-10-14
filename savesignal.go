@@ -72,16 +72,16 @@ type SVSignalDB struct {
 
 func newSVS(cfg Config) *SVSignalDB {
 	bulk_insert_buffer_size := 1
-	if cfg.CONFIG.BulkInsertBufferSize > 0 {
-		bulk_insert_buffer_size = cfg.CONFIG.BulkInsertBufferSize
+	if cfg.SVSIGNAL.BulkInsertBufferSize > 0 {
+		bulk_insert_buffer_size = cfg.SVSIGNAL.BulkInsertBufferSize
 	}
 	buffer_size := 1
-	if cfg.CONFIG.BufferSize > 0 {
-		buffer_size = cfg.CONFIG.BufferSize
+	if cfg.SVSIGNAL.BufferSize > 0 {
+		buffer_size = cfg.SVSIGNAL.BufferSize
 	}
 	var period_save int64 = 1
-	if cfg.CONFIG.PeriodSave > 0 {
-		period_save = cfg.CONFIG.PeriodSave
+	if cfg.SVSIGNAL.PeriodSave > 0 {
+		period_save = cfg.SVSIGNAL.PeriodSave
 	}
 
 	SrvStatus.BufferSize = buffer_size
@@ -98,7 +98,7 @@ func newSVS(cfg Config) *SVSignalDB {
 		buffer_write_f:          make(map[int64]*[]SValueFloat),
 		bulk_insert_buffer_size: bulk_insert_buffer_size,
 		buffer_size:             buffer_size,
-		debug_level:             cfg.CONFIG.DEBUG_LEVEL,
+		debug_level:             cfg.SVSIGNAL.DEBUG_LEVEL,
 		period_save:             period_save,
 		lt_save:                 time.Now().Unix(),
 	}

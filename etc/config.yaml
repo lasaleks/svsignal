@@ -1,17 +1,12 @@
-config:
+server_path_cfg: /usr/insiteexpert/etc/server.yaml
+
+svsignal:
   debug_level: 0
   
   rabbitmq:
     url: amqp://rabbit:rabbitie@rabbitmq:5672/?heartbeat=10
     queue_name: "svsignal"
     qos: 100
-
-  mysql:
-    host: mysql
-    user: apache2
-    password: apache2data
-    port: 3306
-    database: insiteexpert_v4
 
   http:
     # address: :5501
@@ -22,5 +17,3 @@ config:
   bulk_insert_buffer_size: 1000
   buffer_size: 10000
   period_save: 60
-
-  TimeZone: Asia/Novokuznetsk

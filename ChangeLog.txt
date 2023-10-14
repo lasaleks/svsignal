@@ -1,3 +1,6 @@
+v1.0.4
+Чтение параметров конфигурации TIME_ZONE, MYSQL вынесено в server.yaml модуль go-utils/configsrv, 
+также параметр TIME_ZONE читает из env vars
 v1.0.2
 Обновление модулей
 подключение с bitbucket.org/lasaleks/go-rmq, github.com/streadway/amqp переписано на github.com/lasaleks/gormq

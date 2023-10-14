@@ -337,7 +337,7 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Signals:       signals,
 		Begin:         begin,
 		End:           end,
-		TimeZone:      h.cfg.CONFIG.TimeZone,
+		TimeZone:      h.cfg.CONFIG_SERVER.TIME_ZONE,
 		Cols:          cols,
 		Height:        height,
 		UseGroupChart: UseGroupChart,

@@ -20,7 +20,7 @@ func TestHubRun(t *testing.T) {
 
 	hub := newHub()
 	hub.CH_SAVE_VALUE = make(chan ValueSignal, 1)
-	hub.debug_level = cfg.CONFIG.DEBUG_LEVEL
+	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
@@ -135,7 +135,7 @@ func TestRmqSetSignal(t *testing.T) {
 	hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
 	hub.CH_SET_SIGNAL = savesignal.CH_SET_SIGNAL
-	hub.debug_level = cfg.CONFIG.DEBUG_LEVEL
+	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)

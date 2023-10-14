@@ -582,9 +582,9 @@ func TestMultiplyInsertDescreetValues(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 0
-	cfg.CONFIG.BulkInsertBufferSize = 10
-	cfg.CONFIG.BufferSize = 10
+	cfg.SVSIGNAL.DEBUG_LEVEL = 0
+	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BufferSize = 10
 	savesignal := newSVS(cfg)
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
@@ -685,8 +685,8 @@ func TestQueryDescreetDataFromCache(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 0
-	cfg.CONFIG.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.DEBUG_LEVEL = 0
+	cfg.SVSIGNAL.BulkInsertBufferSize = 10
 	savesignal := newSVS(cfg)
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
@@ -1015,10 +1015,10 @@ func TestMultiplyInsertValuesAvg(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 0
+	cfg.SVSIGNAL.DEBUG_LEVEL = 0
 	DEBUG_LEVEL = 0
-	cfg.CONFIG.BulkInsertBufferSize = 10
-	cfg.CONFIG.BufferSize = 10
+	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BufferSize = 10
 	savesignal := newSVS(cfg)
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
@@ -1123,9 +1123,9 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 	}
 
 	cfg := Config{}
-	cfg.CONFIG.DEBUG_LEVEL = 0
-	cfg.CONFIG.BulkInsertBufferSize = 10
-	cfg.CONFIG.BufferSize = 10
+	cfg.SVSIGNAL.DEBUG_LEVEL = 0
+	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BufferSize = 10
 	savesignal := newSVS(cfg)
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
