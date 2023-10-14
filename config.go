@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -27,7 +28,7 @@ type Config struct {
 		BulkInsertBufferSize int   `yaml:"bulk_insert_buffer_size"`
 		BufferSize           int   `yaml:"buffer_size"`
 		PeriodSave           int64 `yaml:"period_save"`
-	}
+	} `yaml:"svsignal"`
 	SERVER_PATH_CFG string `yaml:"server_path_cfg"`
 	CONFIG_SERVER   configsrv.ConfigSrv
 }
@@ -43,7 +44,7 @@ func (conf *Config) ParseConfig(config_file string) error {
 		return fmt.Errorf("unmarshal: %v", err)
 	}
 	if err = conf.CONFIG_SERVER.ParseConfig(conf.SERVER_PATH_CFG); err != nil {
-		return err
+		return errors.Join(fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
 	}
 	return nil
 }
