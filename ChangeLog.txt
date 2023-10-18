@@ -1,3 +1,6 @@
+v1.0.7
+bag fix memory leak
+update gormq до v1.0.7
 v1.0.4
 Чтение параметров конфигурации TIME_ZONE, MYSQL вынесено в server.yaml модуль go-utils/configsrv, 
 также параметр TIME_ZONE читает из env vars
