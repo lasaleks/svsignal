@@ -10,9 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"bitbucket.org/lasaleks/svsignal/config"
 	_ "github.com/go-sql-driver/mysql"
 	goutils "github.com/lasaleks/go-utils"
 	"github.com/lasaleks/gormq"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var VERSION string
@@ -21,10 +24,27 @@ var BUILD string
 var DEBUG_LEVEL = 0
 
 var (
+	cfg config.Config
+	DB  *gorm.DB
+)
+
+var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
 	pid_file    = flag.String("pid", "", "path pid file")
 	get_version = flag.Bool("version", false, "version")
 )
+
+func connectDataBase() {
+	if db, err := gorm.Open(sqlite.Open(""), &gorm.Config{}); err != nil {
+		log.Panicf("failed to connect database; err:%s", err)
+	} else {
+		DB = db
+	}
+	/*
+		for _, exec := range EXECS {
+			db.Exec(exec)
+		}*/
+}
 
 func main() {
 
@@ -43,7 +63,6 @@ func main() {
 	}
 
 	// загрузка конфигурации
-	var cfg Config
 	if err := cfg.ParseConfig(*config_file); err != nil {
 		log.Panicln(err)
 	}

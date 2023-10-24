@@ -14,6 +14,21 @@ svsignal:
     user: root
     password: 234123412
 
+  TypeDataBase: sqlite
+
+  mysql:
+    host: mysql
+    user: apache2
+    password: apache2data
+    port: 3306
+    database: insiteexpert_v4
+
+  sqlite:
+    file: "/usr/svsignal/database/svsignal.db"
+    pragma:
+      - "PRAGMA journal_mode = WAL"
+      - "PRAGMA synchronous = OFF"
+
   bulk_insert_buffer_size: 1000
   buffer_size: 10000
   period_save: 60
