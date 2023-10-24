@@ -1,4 +1,4 @@
-package svsignaldb
+package model
 
 import (
 	"log"
@@ -26,7 +26,7 @@ type Signal struct {
 }
 
 type MValue struct {
-	ID       int
+	gorm.Model
 	SignalID uint  `gorm:"index"`
 	UTime    int64 `gorm:"index"`
 	Max      float32
@@ -37,7 +37,7 @@ type MValue struct {
 }
 
 type IValue struct {
-	ID       int
+	gorm.Model
 	SignalID uint
 	UTime    int64 `gorm:"index"`
 	Value    int32 `gorm:"index"`
@@ -45,7 +45,7 @@ type IValue struct {
 }
 
 type FValue struct {
-	ID       int
+	gorm.Model
 	SignalID uint  `gorm:"index"`
 	UTime    int64 `gorm:"index"`
 	Value    float64

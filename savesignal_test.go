@@ -60,30 +60,30 @@ func TestCreate(t *testing.T) {
 	mock.ExpectExec("INSERT INTO svsignal_ivalue").WithArgs(2, 10, 1636278215, 0).WillReturnResult(sqlmock.NewResult(2, 1))
 	mock.ExpectCommit()
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
-	savesignal.CH_SET_SIGNAL <- SetSignal{group_key: "TestSys", signal_key: "test1", TypeSave: 1, Name: "Check1", Period: 60, Delta: 10000}
-	for len(savesignal.CH_SET_SIGNAL) > 0 {
+	CH_SET_SIGNAL <- SetSignal{group_key: "TestSys", signal_key: "test1", TypeSave: 1, Name: "Check1", Period: 60, Delta: 10000}
+	for len(CH_SET_SIGNAL) > 0 {
 		time.Sleep(time.Millisecond * 1)
 	}
-	savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "TestSys", signal_key: "test1", Value: 10, UTime: 1636278215, Offline: 0}
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	CH_SAVE_VALUE <- ValueSignal{group_key: "TestSys", signal_key: "test1", Value: 10, UTime: 1636278215, Offline: 0}
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Millisecond * 1)
 	}
-	savesignal.CH_SET_SIGNAL <- SetSignal{group_key: "TestSys", signal_key: "test2", TypeSave: 1, Name: "Check2", Period: 60, Delta: 10000}
-	for len(savesignal.CH_SET_SIGNAL) > 0 {
+	CH_SET_SIGNAL <- SetSignal{group_key: "TestSys", signal_key: "test2", TypeSave: 1, Name: "Check2", Period: 60, Delta: 10000}
+	for len(CH_SET_SIGNAL) > 0 {
 		time.Sleep(time.Millisecond * 1)
 	}
-	savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "TestSys", signal_key: "test2", Value: 10, UTime: 1636278215, Offline: 0}
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	CH_SAVE_VALUE <- ValueSignal{group_key: "TestSys", signal_key: "test2", Value: 10, UTime: 1636278215, Offline: 0}
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -130,11 +130,11 @@ func TestSave1(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -157,14 +157,14 @@ func TestSave1(t *testing.T) {
 		{value: 20, utime: 1636278426, offline: 0},
 		{value: 20, utime: 1636278526, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -209,11 +209,11 @@ func TestSave2(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -238,14 +238,14 @@ func TestSave2(t *testing.T) {
 		{value: 30, utime: 1636278390, offline: 0},
 		{value: 30, utime: 1636278400, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -295,11 +295,11 @@ func TestSaveAVG_Delta(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -335,14 +335,14 @@ func TestSaveAVG_Delta(t *testing.T) {
 		{value: 4, utime: 1636278430, offline: 0},
 		{value: 4, utime: 1636278440, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 20)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -393,11 +393,11 @@ func TestSaveAVG_Offline(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -430,14 +430,14 @@ func TestSaveAVG_Offline(t *testing.T) {
 		{value: 20, utime: 1636280050, offline: 0},
 		{value: 0, utime: 1636280060, offline: 1},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 20)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -486,11 +486,11 @@ func TestSave3(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -515,14 +515,14 @@ func TestSave3(t *testing.T) {
 		{value: 30, utime: 1636278390, offline: 0},
 		{value: 30, utime: 1636278400, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -581,15 +581,14 @@ func TestMultiplyInsertDescreetValues(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	cfg := Config{}
 	cfg.SVSIGNAL.DEBUG_LEVEL = 0
-	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BulkSize = 10
 	cfg.SVSIGNAL.BufferSize = 10
-	savesignal := newSVS(cfg)
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -612,14 +611,14 @@ func TestMultiplyInsertDescreetValues(t *testing.T) {
 		{value: 20, utime: 1636278426, offline: 0},
 		{value: 20, utime: 1636278526, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "Group", signal_key: "Test", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -684,14 +683,13 @@ func TestQueryDescreetDataFromCache(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	cfg := Config{}
 	cfg.SVSIGNAL.DEBUG_LEVEL = 0
-	cfg.SVSIGNAL.BulkInsertBufferSize = 10
-	savesignal := newSVS(cfg)
+	cfg.SVSIGNAL.BulkSize = 10
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -716,10 +714,10 @@ func TestQueryDescreetDataFromCache(t *testing.T) {
 		{value: 14, utime: 1636278215, offline: 0},
 		{value: 14, utime: 1636278216, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.rx", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.rx", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
@@ -954,7 +952,7 @@ func TestQueryDescreetDataFromCache(t *testing.T) {
 		})
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -1014,16 +1012,15 @@ func TestMultiplyInsertValuesAvg(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	cfg := Config{}
 	cfg.SVSIGNAL.DEBUG_LEVEL = 0
 	DEBUG_LEVEL = 0
-	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BulkSize = 10
 	cfg.SVSIGNAL.BufferSize = 10
-	savesignal := newSVS(cfg)
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -1055,14 +1052,14 @@ func TestMultiplyInsertValuesAvg(t *testing.T) {
 		{value: 80, utime: 1636278600, offline: 0},
 		{value: 80, utime: 1636278610, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.volt", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.volt", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 
@@ -1122,15 +1119,14 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 		mock.ExpectCommit()
 	}
 
-	cfg := Config{}
 	cfg.SVSIGNAL.DEBUG_LEVEL = 0
-	cfg.SVSIGNAL.BulkInsertBufferSize = 10
+	cfg.SVSIGNAL.BulkSize = 10
 	cfg.SVSIGNAL.BufferSize = 10
-	savesignal := newSVS(cfg)
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	for _, value := range []struct {
 		value   float64
@@ -1164,10 +1160,10 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 		{value: 80, utime: 1636278600, offline: 0},
 		{value: 80, utime: 1636278610, offline: 0},
 	} {
-		savesignal.CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.volt", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
+		CH_SAVE_VALUE <- ValueSignal{group_key: "IE", signal_key: "beacon.1234.volt", Value: value.value, UTime: value.utime, Offline: int64(value.offline)}
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
@@ -1313,7 +1309,7 @@ func TestQueryAvgDataFromCache(t *testing.T) {
 		})
 	}
 
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 	cancel_db()
 	wg.Wait()
 

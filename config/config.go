@@ -28,12 +28,11 @@ type Config struct {
 			User       string `yaml:"user"`
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
-		BulkInsertBufferSize int    `yaml:"bulk_insert_buffer_size"`
-		BufferSize           int    `yaml:"buffer_size"`
-		PeriodSave           int64  `yaml:"period_save"`
-		TypeDataBase         string `yaml:"TypeDataBase"`
+		BulkSize   int   `yaml:"bulk_size"`
+		BufferSize int   `yaml:"buffer_size"`
+		PeriodSave int64 `yaml:"period_save"`
 
-		MYSQL struct {
+		MYSQL *struct {
 			HOST     string `yaml:"host"`
 			USER     string `yaml:"user"`
 			PASSWORD string `yaml:"password"`
@@ -41,7 +40,7 @@ type Config struct {
 			DATABASE string `yaml:"database"`
 		} `yaml:"mysql"`
 
-		SQLite struct {
+		SQLite *struct {
 			FILE   string   `yaml:"file"`
 			PRAGMA []string `yaml:"pragma"`
 		}
@@ -62,11 +61,8 @@ func (conf *Config) ParseConfig(config_file string) error {
 		return errors.Join(fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
 		//return fmt.Errorf("%w; %w", fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
 	}
-	switch conf.SVSIGNAL.TypeDataBase {
-	case "mysql":
-	case "sqlite":
-	default:
-		return fmt.Errorf("typedatabase value mysql or sqlite, is not equal %s", conf.SVSIGNAL.TypeDataBase)
+	if conf.SVSIGNAL.MYSQL == nil && conf.SVSIGNAL.SQLite == nil {
+		return fmt.Errorf("not found connect to db, mysql or sqlite")
 	}
 	return nil
 }

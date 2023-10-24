@@ -11,16 +11,14 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/lasaleks/svsignal/model"
 )
 
 // Сбор статистики работы сервиса
 var SrvStatus struct {
-	ValuesInBuffer       int `json:"ValuesInBuffer"`       // кол-во значений в буффере
-	BufferSize           int `json:"BufferSize"`           // размер буффера
-	BulkInsertBufferSize int `json:"BulkInsertBufferSize"` //
-	PeriodSave           int `json:"PeriodSave"`           // период сохранения
-	RecvedValues         int `json:"RecvedValues"`         // кол-во полученных сохранений значений сигнала
-	NumberOfWriteValues  int `json:"NumberOfWriteValues"`  // кол-во сохраненных событий
+	ValuesInBuffer      int `json:"ValuesInBuffer"`      // кол-во значений в буффере
+	RecvedValues        int `json:"RecvedValues"`        // кол-во полученных сохранений значений сигнала
+	NumberOfWriteValues int `json:"NumberOfWriteValues"` // кол-во сохраненных событий
 	//
 	HeapInuse    uint64 // количество байт, которые программа аллоцировала в динамической памяти
 	StackInuse   uint64 // количество памяти, которое находится на стеке
@@ -47,15 +45,13 @@ type SValueFloat struct {
 }
 
 type SVSignalDB struct {
-	db              *sql.DB
-	CH_SAVE_VALUE   chan ValueSignal
-	CH_SET_SIGNAL   chan SetSignal
-	groups          map[string]svsignal_group
-	signals         map[string]*svsignal_signal
+	db              *sql.DB // !!!! remove
+	group_id        map[uint]*model.Group
+	group_key       map[string]*model.Group
+	signal_key      map[string]*model.Signal
 	svalueint       map[string]*SValueInt
 	svalueavg       map[string]*AVG
 	CH_REQUEST_HTTP chan interface{}
-	debug_level     int
 
 	// cache insert
 	bulk_insert_buffer_size int
@@ -70,60 +66,61 @@ type SVSignalDB struct {
 	period_save int64
 }
 
-func newSVS(cfg Config) *SVSignalDB {
-	bulk_insert_buffer_size := 1
-	if cfg.SVSIGNAL.BulkInsertBufferSize > 0 {
-		bulk_insert_buffer_size = cfg.SVSIGNAL.BulkInsertBufferSize
-	}
-	buffer_size := 1
-	if cfg.SVSIGNAL.BufferSize > 0 {
-		buffer_size = cfg.SVSIGNAL.BufferSize
-	}
-	var period_save int64 = 1
-	if cfg.SVSIGNAL.PeriodSave > 0 {
-		period_save = cfg.SVSIGNAL.PeriodSave
-	}
-
-	SrvStatus.BufferSize = buffer_size
-	SrvStatus.BulkInsertBufferSize = bulk_insert_buffer_size
-	SrvStatus.PeriodSave = int(period_save)
-
+func newSVS() *SVSignalDB {
 	return &SVSignalDB{
-		CH_SAVE_VALUE:           make(chan ValueSignal, 1),
-		CH_SET_SIGNAL:           make(chan SetSignal, 1),
-		CH_REQUEST_HTTP:         make(chan interface{}, 1),
-		svalueint:               make(map[string]*SValueInt),
-		svalueavg:               make(map[string]*AVG),
-		buffer_write_i:          make(map[int64]*[]SValueInt),
-		buffer_write_f:          make(map[int64]*[]SValueFloat),
-		bulk_insert_buffer_size: bulk_insert_buffer_size,
-		buffer_size:             buffer_size,
-		debug_level:             cfg.SVSIGNAL.DEBUG_LEVEL,
-		period_save:             period_save,
-		lt_save:                 time.Now().Unix(),
+		group_id:        make(map[uint]*model.Group),
+		group_key:       make(map[string]*model.Group),
+		CH_REQUEST_HTTP: make(chan interface{}, 1),
+		svalueint:       make(map[string]*SValueInt),
+		svalueavg:       make(map[string]*AVG),
+		buffer_write_i:  make(map[int64]*[]SValueInt),
+		buffer_write_f:  make(map[int64]*[]SValueFloat),
+		lt_save:         time.Now().Unix(),
 	}
 }
 
-func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
+func (s *SVSignalDB) Run(wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 	defer func() {
 		write_buffer_i(s.db, s.buffer_write_i, s.bulk_insert_buffer_size)
 		write_buffer_f(s.db, s.buffer_write_f, s.bulk_insert_buffer_size)
-		if s.debug_level >= 1 {
+		if cfg.SVSIGNAL.DEBUG_LEVEL >= 1 {
 			log.Println("SaveSignal End")
 		}
 	}()
-	groups, err := load_groups(s.db)
-	if err != nil {
-		log.Panicf("error load svsignal_systems %v", err)
-	}
-	signals, err := load_signals(s.db)
-	if err != nil {
-		log.Panicf("error load svsignal_signals %v", err)
-	}
-	s.groups = *groups
-	s.signals = *signals
 
+	var groups []model.Group
+	// works because destination struct is passed in
+	if result := DB.Find(&groups); result.Error != nil {
+		// error load svsignal_systems
+		log.Panicln(result.Statement.SQL, result.Error)
+	}
+	for _, group := range groups {
+		s.group_key[group.Key] = &group
+		s.group_id[group.ID] = &group
+	}
+
+	var signals []model.Signal
+	//db.Joins("Company").Find(&users)
+	// works because destination struct is passed in
+	if result := DB.Joins("tag").Find(&signals); result.Error != nil {
+		// error load svsignal_systems
+		log.Panicln(result.Statement.SQL, result.Error)
+	}
+	for _, signal := range signals {
+		group, ok := s.group_id[signal.GroupID]
+		if !ok {
+			continue
+		}
+		s.signal_key[fmt.Sprintf("%s.%s", group.Key, signal.Key)] = &signal
+	}
+	/*
+		signals, err := load_signals(s.db)
+		if err != nil {
+			log.Panicf("error load svsignal_signals %v", err)
+		}
+		s.signals = *signals
+	*/
 	for {
 		select {
 		case <-ctx.Done():
@@ -142,14 +139,14 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 				SrvStatus.ValuesInBuffer = 0
 			}
 			break
-		case msg, ok := <-s.CH_SAVE_VALUE:
+		case msg, ok := <-CH_SAVE_VALUE:
 			if ok {
 				s.save_value(&msg)
 				SrvStatus.RecvedValues++
 			} else {
 				return
 			}
-		case msg, ok := <-s.CH_SET_SIGNAL:
+		case msg, ok := <-CH_SET_SIGNAL:
 			if ok {
 				s.set_signal(msg)
 			} else {
@@ -162,29 +159,24 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 					request.CH_RR_LIST_SIGNAL <- *s.response_list_signal()
 				case ReqSignalData:
 					signal_key := fmt.Sprintf("%s.%s", request.groupkey, request.signalkey)
-					signal, ok := s.signals[signal_key]
+					signal, ok := s.signal_key[signal_key]
 					if !ok {
 						request.CH_RESPONSE <- fmt.Errorf("error not found %s", signal_key)
 					} else {
-						var tags []svsignal_tag
-						if signal.tags != nil {
-							tags = *signal.tags
-						}
-						signal.tags = &tags
 						name_group := ""
-						group, ok := s.groups[request.groupkey]
+						group, ok := s.group_key[request.groupkey]
 						if ok {
-							name_group = group.name
+							name_group = group.Name
 						}
 						var value_signal *SValueInt
-						if signal.type_save == 1 {
+						if signal.TypeSave == 1 {
 							value_signal = s.svalueint[signal_key]
 							if value_signal != nil {
 								value_signal = &SValueInt{value: value_signal.value, utime: value_signal.utime, offline: value_signal.offline}
 							}
 						}
 
-						s.get_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, signal.type_save)
+						s.get_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, int(signal.TypeSave))
 					}
 				}
 			}
@@ -194,32 +186,33 @@ func (s *SVSignalDB) run(wg *sync.WaitGroup, ctx context.Context) {
 
 func (s *SVSignalDB) response_list_signal() *ResponseListSignal {
 	lsig := ResponseListSignal{Groups: make(map[string]*RLS_Groups)}
-	for _, group := range s.groups {
-		lsig.Groups[group.group_key] = &RLS_Groups{Name: group.name, Signals: make(map[string]RLS_Signal)}
+	for _, group := range s.group_id {
+		lsig.Groups[group.Key] = &RLS_Groups{Name: group.Name, Signals: make(map[string]RLS_Signal)}
 	}
 	// сортируем ключи
-	keys := make([]string, 0, len(s.signals))
-	for k := range s.signals {
+	keys := make([]string, 0, len(s.signal_key))
+	for k := range s.signal_key {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		data := s.signals[key]
-		_, ok := lsig.Groups[data.group_key]
+		signal := s.signal_key[key]
+		group := s.group_id[signal.GroupID]
+		_, ok := lsig.Groups[group.Key]
 		if !ok {
-			lsig.Groups[data.group_key] = &RLS_Groups{}
+			lsig.Groups[group.Key] = &RLS_Groups{}
 		}
 		tags := []RLS_Tag{}
-		if data.tags != nil {
-			for _, tag := range *data.tags {
-				tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+		if signal.Tags != nil {
+			for _, tag := range signal.Tags {
+				tags = append(tags, RLS_Tag{Tag: tag.Tag, Value: tag.Value})
 			}
 		}
-		lsig.Groups[data.group_key].Signals[key] = RLS_Signal{
-			Name:     data.name,
-			TypeSave: data.type_save,
-			Period:   data.period,
-			Delta:    data.delta,
+		lsig.Groups[group.Key].Signals[key] = RLS_Signal{
+			Name:     signal.Name,
+			TypeSave: int(signal.TypeSave),
+			Period:   signal.Period,
+			Delta:    signal.Delta,
 			Tags:     tags,
 		}
 	}
@@ -232,18 +225,18 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 		log.Printf("save_value %s %+v", sig_key, val)
 	}
 
-	if s.debug_level >= 6 {
+	if cfg.SVSIGNAL.DEBUG_LEVEL >= 6 {
 		log.Printf("SaveSignal:%s value:%v offline:%d utime:%d\n", sig_key, val.Value, val.Offline, val.UTime)
 	}
 
-	signal, ok := s.signals[sig_key]
+	signal, ok := s.signal_key[sig_key]
 	if !ok {
-		if s.debug_level >= 1 {
+		if cfg.SVSIGNAL.DEBUG_LEVEL >= 1 {
 			fmt.Printf("not found signal, key:%s", sig_key)
 		}
 		return
 	}
-	switch signal.type_save {
+	switch signal.TypeSave {
 	case 1:
 		valuei := int64(val.Value)
 		offline := int(val.Offline)
@@ -261,7 +254,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 			is_save = true
 		}
 		if is_save {
-			s.insert_valuei(s.db, signal.id, valuei, val.UTime, val.Offline, s.debug_level >= 6)
+			s.insert_valuei(s.db, int64(signal.ID), valuei, val.UTime, val.Offline, cfg.SVSIGNAL.DEBUG_LEVEL >= 6)
 		}
 		pvalue.value = valuei
 		pvalue.offline = offline
@@ -272,7 +265,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 	case 2:
 		avg, ok := s.svalueavg[sig_key]
 		if !ok {
-			avg = newAVG(signal.period, signal.delta)
+			avg = newAVG(signal.Period, signal.Delta)
 			s.svalueavg[sig_key] = avg
 		}
 		err, l_values := avg.add_value(SValueFloat{value: val.Value, utime: val.UTime, offline: int(val.Offline)})
@@ -284,7 +277,7 @@ func (s *SVSignalDB) save_value(val *ValueSignal) {
 		}
 		for _, value := range l_values {
 			//fmt.Printf("insert_valuef: %+v\n", value)
-			s.insert_valuef(s.db, signal.id, value.value, value.utime, int64(value.offline))
+			s.insert_valuef(s.db, int64(signal.ID), value.value, value.utime, int64(value.offline))
 		}
 	case 3:
 		break
@@ -463,7 +456,7 @@ func write_buffer_f(db *sql.DB, buffer_f map[int64]*[]SValueFloat, max_multiply_
 }
 
 func (s *SVSignalDB) insert_valuei(db *sql.DB, signal_id int64, value int64, utime int64, offline int64, debug bool) error {
-	if s.debug_level >= 6 {
+	if cfg.SVSIGNAL.DEBUG_LEVEL >= 6 {
 		fmt.Println("insert_valuei", signal_id, value, utime, offline)
 	}
 	cache, ok := s.buffer_write_i[signal_id]
@@ -693,13 +686,13 @@ func load_signal_tags(db *sql.DB) (*map[int64]*[]svsignal_tag, error) {
 	return &tags, nil
 }
 
-func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64) (*[][4]int64, error) {
+func (s *SVSignalDB) get_data_signal_i(signal *model.Signal, value_signal_i *SValueInt, begin int64, end int64) (*[][4]int64, error) {
 	ivalues := &[][4]int64{}
 
 	// определяем наличие данных в буффере на вставку
 	var firts_utime_in_cache *int64
 	var last_utime_in_cache *int64
-	cache, ok := s.buffer_write_i[signal.id]
+	cache, ok := s.buffer_write_i[int64(signal.ID)]
 	if ok {
 		len_cache := len(*cache)
 		if len_cache > 0 {
@@ -742,7 +735,10 @@ func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *
 
 	if query_db_begin {
 		// запрос значения до заданного периода begin-end
-		row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.id, begin, signal.id))
+		//IValues := []model.IValue{}
+		//DB.Where("id = ?", signal.ID).Select().Find(&IValues)
+		//DB.Find(&ivalues, "id = ? and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", "jinzhu", 20)
+		row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.ID, begin, signal.ID))
 		if row != nil {
 			var ivalue [4]int64
 			err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
@@ -754,7 +750,7 @@ func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *
 
 	if query_db {
 		// запрашиваем данные за период из бд
-		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end))
+		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.ID, begin, end))
 		if err != nil {
 			fmt.Println(err)
 			return nil, err
@@ -773,7 +769,7 @@ func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *
 
 		if query_db_end {
 			// запрос значения после заданного периода begin-end
-			row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime>%d and signal_id=%d)", signal.id, end, signal.id))
+			row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime>%d and signal_id=%d)", signal.ID, end, signal.ID))
 			if row != nil {
 				var ivalue [4]int64
 				err := row.Scan(&ivalue[0], &ivalue[1], &ivalue[2], &ivalue[3])
@@ -824,13 +820,13 @@ func (s *SVSignalDB) get_data_signal_i(signal *svsignal_signal, value_signal_i *
 	return ivalues, nil
 }
 
-func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end int64) (*[][4]interface{}, error) {
+func (s *SVSignalDB) get_data_signal_f(signal *model.Signal, begin int64, end int64) (*[][4]interface{}, error) {
 	fvalues := &[][4]interface{}{}
 
 	// определяем наличие данных в буффере на вставку
 	var firts_utime_in_cache *int64
 	var last_utime_in_cache *int64
-	cache, ok := s.buffer_write_f[signal.id]
+	cache, ok := s.buffer_write_f[int64(signal.ID)]
 	if ok {
 		len_cache := len(*cache)
 		if len_cache > 0 {
@@ -862,7 +858,7 @@ func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end
 
 	if query_db {
 		// запрашиваем данные за период из бд
-		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.id, begin, end))
+		rows, err := s.db.Query(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_fvalue WHERE signal_id=%d and utime >= %d and utime <=%d", signal.ID, begin, end))
 		if err != nil {
 			fmt.Println(err)
 			return nil, err
@@ -896,27 +892,28 @@ func (s *SVSignalDB) get_data_signal_f(signal *svsignal_signal, begin int64, end
 	return fvalues, nil
 }
 
-func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *svsignal_signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
+func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *model.Signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
 	if signal == nil {
 		out <- fmt.Errorf("error get_data_signal signal:nil")
 		return
 	}
 	tags := []RLS_Tag{}
-	for _, tag := range *signal.tags {
-		tags = append(tags, RLS_Tag{Tag: tag.tag, Value: tag.value})
+	for _, tag := range signal.Tags {
+		tags = append(tags, RLS_Tag{Tag: tag.Tag, Value: tag.Value})
 	}
 
 	switch type_table {
 	case TYPE_IVALUE:
 		ivalues, err := s.get_data_signal_i(signal, value_signal_i, begin, end)
 		if err != nil {
-			out <- fmt.Errorf("error key:%s %s", signal.signal_key, err)
+			out <- fmt.Errorf("error key:%s %s", signal.Key, err)
 		} else {
+			group := s.group_id[signal.GroupID]
 			out <- ResponseDataSignalT1{
-				GroupKey:   signal.group_key,
+				GroupKey:   group.Key,
 				GroupName:  name_group,
-				SignalKey:  signal.signal_key,
-				SignalName: signal.name,
+				SignalKey:  signal.Key,
+				SignalName: signal.Name,
 				TypeSave:   type_table,
 				Values:     *ivalues,
 				Tags:       tags,
@@ -925,13 +922,14 @@ func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_grou
 	case TYPE_FVALUE:
 		fvalues, err := s.get_data_signal_f(signal, begin, end)
 		if err != nil {
-			out <- fmt.Errorf("error key:%s %s", signal.signal_key, err)
+			out <- fmt.Errorf("error key:%s %s", signal.Key, err)
 		} else {
+			group := s.group_id[signal.GroupID]
 			out <- ResponseDataSignalT2{
-				GroupKey:   signal.group_key,
+				GroupKey:   group.Key,
 				GroupName:  name_group,
-				SignalKey:  signal.signal_key,
-				SignalName: signal.name,
+				SignalKey:  signal.Key,
+				SignalName: signal.Name,
 				TypeSave:   type_table,
 				Values:     *fvalues,
 				Tags:       tags,
@@ -945,107 +943,108 @@ func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_grou
 }
 
 func (s *SVSignalDB) set_signal(setsig SetSignal) {
-	group, ok := s.groups[setsig.group_key]
-	if !ok {
-		// create systems
-		id, err := create_new_group(s.db, setsig.group_key)
-		if err != nil {
-			log.Printf("error create new system: group_key:%s; error:%v", setsig.group_key, err)
-		} else {
-			//fmt.Println("create systems", val.system_key, "Ok")
-			group = svsignal_group{id: id, group_key: setsig.group_key, name: ""}
-			s.groups[setsig.group_key] = group
-		}
-	}
-	sig_key := fmt.Sprintf("%s.%s", setsig.group_key, setsig.signal_key)
-	signal, ok := s.signals[sig_key]
-	if !ok {
-		// create signals
-		//fmt.Println("create signal", val.signal_key)
-		id, err := create_new_signal(s.db, group.id, setsig.signal_key, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
-		if err != nil {
-			log.Println("Error create signal", setsig, err)
-			return
-		}
-		//log.Println("create signal", val, id, "OK")
-		signal = &svsignal_signal{
-			id:         id,
-			group_key:  setsig.group_key,
-			signal_key: setsig.signal_key,
-			name:       setsig.Name,
-			type_save:  setsig.TypeSave,
-			period:     setsig.Period,
-			delta:      setsig.Delta,
-		}
-		s.signals[sig_key] = signal
-	} else {
-		fmt.Printf("update signal %++v\n", setsig)
-		if signal.name != setsig.Name || signal.type_save != setsig.TypeSave || signal.period != setsig.Period || signal.delta != setsig.Delta {
-			err := update_signal(s.db, signal.id, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+	/*
+		group, ok := s.groups[setsig.group_key]
+		if !ok {
+			// create systems
+			id, err := create_new_group(s.db, setsig.group_key)
 			if err != nil {
-				log.Println("Error update signal", setsig, err)
+				log.Printf("error create new system: group_key:%s; error:%v", setsig.group_key, err)
+			} else {
+				//fmt.Println("create systems", val.system_key, "Ok")
+				group = svsignal_group{id: id, group_key: setsig.group_key, name: ""}
+				s.groups[setsig.group_key] = group
+			}
+		}
+		sig_key := fmt.Sprintf("%s.%s", setsig.group_key, setsig.signal_key)
+		signal, ok := s.signal_key[sig_key]
+		if !ok {
+			// create signals
+			//fmt.Println("create signal", val.signal_key)
+			id, err := create_new_signal(s.db, group.id, setsig.signal_key, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+			if err != nil {
+				log.Println("Error create signal", setsig, err)
 				return
 			}
-			signal.name = setsig.Name
-			signal.type_save = setsig.TypeSave
-			signal.period = setsig.Period
-			signal.delta = setsig.Delta
-		}
-	}
-	if signal.tags == nil {
-		signal.tags = &[]svsignal_tag{}
-	}
-	not_remove := []int64{}
-	for _, utag := range setsig.Tags {
-		create := true
-		for i := 0; i < len(*signal.tags); i++ {
-			tag := &(*signal.tags)[i]
-			if tag.tag == utag.Tag {
-				not_remove = append(not_remove, tag.id)
-				create = false
-				if tag.value != utag.Value {
-					// update
-					err := update_tag(s.db, tag.id, utag.Tag, utag.Value)
-					if err != nil {
-						fmt.Println(err)
-					} else {
-						tag.tag = utag.Tag
-						tag.value = utag.Value
-					}
+			//log.Println("create signal", val, id, "OK")
+			signal = &svsignal_signal{
+				id:         id,
+				group_key:  setsig.group_key,
+				signal_key: setsig.signal_key,
+				name:       setsig.Name,
+				type_save:  setsig.TypeSave,
+				period:     setsig.Period,
+				delta:      setsig.Delta,
+			}
+			s.signal_key[sig_key] = signal
+		} else {
+			fmt.Printf("update signal %++v\n", setsig)
+			if signal.name != setsig.Name || signal.type_save != setsig.TypeSave || signal.period != setsig.Period || signal.delta != setsig.Delta {
+				err := update_signal(s.db, signal.id, setsig.Name, setsig.TypeSave, setsig.Period, setsig.Delta)
+				if err != nil {
+					log.Println("Error update signal", setsig, err)
+					return
 				}
-				break
+				signal.name = setsig.Name
+				signal.type_save = setsig.TypeSave
+				signal.period = setsig.Period
+				signal.delta = setsig.Delta
 			}
 		}
-		if create {
-			// create
-			if new_tag_id, err := create_tag(s.db, signal.id, utag.Tag, utag.Value); err == nil {
-				*(signal.tags) = append(*signal.tags, svsignal_tag{id: new_tag_id, signal_id: signal.id, tag: utag.Tag, value: utag.Value})
-				not_remove = append(not_remove, new_tag_id)
-			} else {
-				fmt.Println("error create_tag", err)
+		if signal.tags == nil {
+			signal.tags = &[]svsignal_tag{}
+		}
+		not_remove := []int64{}
+		for _, utag := range setsig.Tags {
+			create := true
+			for i := 0; i < len(*signal.tags); i++ {
+				tag := &(*signal.tags)[i]
+				if tag.tag == utag.Tag {
+					not_remove = append(not_remove, tag.id)
+					create = false
+					if tag.value != utag.Value {
+						// update
+						err := update_tag(s.db, tag.id, utag.Tag, utag.Value)
+						if err != nil {
+							fmt.Println(err)
+						} else {
+							tag.tag = utag.Tag
+							tag.value = utag.Value
+						}
+					}
+					break
+				}
+			}
+			if create {
+				// create
+				if new_tag_id, err := create_tag(s.db, signal.id, utag.Tag, utag.Value); err == nil {
+					*(signal.tags) = append(*signal.tags, svsignal_tag{id: new_tag_id, signal_id: signal.id, tag: utag.Tag, value: utag.Value})
+					not_remove = append(not_remove, new_tag_id)
+				} else {
+					fmt.Println("error create_tag", err)
+				}
 			}
 		}
-	}
-	// удаляем лишние метки
-	for i := 0; i < len(*signal.tags); {
-		remove := true
-		for _, not_remove_id := range not_remove {
-			if not_remove_id == (*signal.tags)[i].id {
-				remove = false
-				break
+		// удаляем лишние метки
+		for i := 0; i < len(*signal.tags); {
+			remove := true
+			for _, not_remove_id := range not_remove {
+				if not_remove_id == (*signal.tags)[i].id {
+					remove = false
+					break
+				}
 			}
-		}
-		if remove {
-			*signal.tags = append((*signal.tags)[:i], (*signal.tags)[i+1:]...)
-			i = 0
-			err := delete_tag(s.db, (*signal.tags)[i].id)
-			if err != nil {
-				fmt.Println(err)
+			if remove {
+				*signal.tags = append((*signal.tags)[:i], (*signal.tags)[i+1:]...)
+				i = 0
+				err := delete_tag(s.db, (*signal.tags)[i].id)
+				if err != nil {
+					fmt.Println(err)
+				}
+				continue
 			}
-			continue
-		}
-		i++
-	}
+			i++
+		}*/
 }
 
 func create_tag(db *sql.DB, signal_id int64, tag string, value string) (int64, error) {

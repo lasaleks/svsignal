@@ -46,11 +46,11 @@ func TestGetListHttp(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
@@ -151,11 +151,11 @@ func TestGetListHttp_Empty(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
@@ -302,11 +302,11 @@ func TestRequestDataT1Http(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
@@ -416,11 +416,11 @@ func TestRequestDataT2Http(t *testing.T) {
 	//-------
 
 	// init
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	/*hub := newHub()
 	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
@@ -494,11 +494,11 @@ func TestRequestSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	key := "IE.beacon.1235.rx"
 	value := 10.1
@@ -515,14 +515,14 @@ func TestRequestSaveValue(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
-	http_handler := RequestSaveValue{CH_SAVE_VALUE: savesignal.CH_SAVE_VALUE, re_key: re_rkey}
+	http_handler := RequestSaveValue{CH_SAVE_VALUE: CH_SAVE_VALUE, re_key: re_rkey}
 	http_handler.ServeHTTP(w, req)
 	//resp := w.Result()
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 
 	cancel_db()
 	wg.Wait()
@@ -561,11 +561,11 @@ func TestRequestPostSaveValue(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	key := "IE.beacon.1235.rx"
 	value := 10.1
@@ -587,14 +587,14 @@ func TestRequestPostSaveValue(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
-	http_handler := RequestSaveValue{CH_SAVE_VALUE: savesignal.CH_SAVE_VALUE, re_key: re_rkey}
+	http_handler := RequestSaveValue{CH_SAVE_VALUE: CH_SAVE_VALUE, re_key: re_rkey}
 	http_handler.ServeHTTP(w, req)
 	//resp := w.Result()
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 
 	cancel_db()
 	wg.Wait()
@@ -633,11 +633,11 @@ func TestHttpSetSignal(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	tt := []struct {
 		caseName  string
@@ -691,7 +691,7 @@ func TestHttpSetSignal(t *testing.T) {
 
 	var tag_id int64 = 5
 	re_rkey, _ := regexp.Compile(`^(\w+)\.(.+)$`)
-	http_handler := HTTPSetSignal{CH_SET_SIGNAL: savesignal.CH_SET_SIGNAL, re_key: re_rkey}
+	http_handler := HTTPSetSignal{CH_SET_SIGNAL: CH_SET_SIGNAL, re_key: re_rkey}
 	for _, tc := range tt {
 		t.Run(tc.caseName, func(t *testing.T) {
 
@@ -726,16 +726,16 @@ func TestHttpSetSignal(t *testing.T) {
 			w := httptest.NewRecorder()
 			http_handler.ServeHTTP(w, req)
 
-			for len(savesignal.CH_SET_SIGNAL) > 0 {
+			for len(CH_SET_SIGNAL) > 0 {
 				time.Sleep(time.Microsecond * 10)
 			}
 		})
 	}
 
-	for len(savesignal.CH_SAVE_VALUE) > 0 {
+	for len(CH_SAVE_VALUE) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
-	close(savesignal.CH_SAVE_VALUE)
+	close(CH_SAVE_VALUE)
 
 	cancel_db()
 	wg.Wait()

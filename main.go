@@ -10,10 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/lasaleks/svsignal/config"
 	_ "github.com/go-sql-driver/mysql"
 	goutils "github.com/lasaleks/go-utils"
 	"github.com/lasaleks/gormq"
+	"github.com/lasaleks/svsignal/config"
+	"github.com/lasaleks/svsignal/model"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -24,8 +26,13 @@ var BUILD string
 var DEBUG_LEVEL = 0
 
 var (
+	CH_SAVE_VALUE chan ValueSignal
+	CH_SET_SIGNAL chan SetSignal
+	CH_MSG_AMPQ   chan gormq.MessageAmpq
+
 	cfg config.Config
 	DB  *gorm.DB
+	hub *Hub
 )
 
 var (
@@ -35,21 +42,56 @@ var (
 )
 
 func connectDataBase() {
-	if db, err := gorm.Open(sqlite.Open(""), &gorm.Config{}); err != nil {
-		log.Panicf("failed to connect database; err:%s", err)
-	} else {
-		DB = db
+	if cfg.SVSIGNAL.MYSQL != nil {
+		uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.SVSIGNAL.MYSQL.USER, cfg.SVSIGNAL.MYSQL.PASSWORD, cfg.SVSIGNAL.MYSQL.HOST, cfg.SVSIGNAL.MYSQL.PORT, cfg.SVSIGNAL.MYSQL.DATABASE)
+		fmt.Println(uri)
+		var err error
+
+		db, err := sql.Open("mysql", uri)
+
+		if err != nil {
+			log.Println("Error Open DB", err)
+		}
+		defer db.Close()
+
+		// See "Important settings" section.
+		db.SetConnMaxLifetime(time.Minute * 3)
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(10)
+
+		err = db.Ping()
+		if err != nil {
+			log.Panicln("connect to DB", err)
+		}
+
+		DB, err = gorm.Open(mysql.New(mysql.Config{
+			Conn: db,
+		}), &gorm.Config{})
+		if err != nil {
+			log.Panicln("connect to DB", err)
+		}
 	}
-	/*
-		for _, exec := range EXECS {
+
+	if cfg.SVSIGNAL.SQLite != nil {
+		db, err := gorm.Open(sqlite.Open(""), &gorm.Config{})
+		if err != nil {
+			log.Panicf("failed to connect DB; err:%s", err)
+		}
+		DB = db
+		for _, exec := range cfg.SVSIGNAL.SQLite.PRAGMA {
 			db.Exec(exec)
-		}*/
+		}
+	}
 }
 
 func main() {
 
 	var wg sync.WaitGroup
 	ctx := context.Background()
+
+	CH_SAVE_VALUE = make(chan ValueSignal, 1)
+	CH_SET_SIGNAL = make(chan SetSignal, 1)
+	CH_MSG_AMPQ = make(chan gormq.MessageAmpq, 1)
 
 	flag.Parse()
 	fmt.Println(VERSION+" build:", BUILD)
@@ -68,44 +110,29 @@ func main() {
 	}
 	fmt.Printf("%+v\n", cfg)
 
-	// connect DB
-	uri := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.CONFIG_SERVER.MYSQL.USER, cfg.CONFIG_SERVER.MYSQL.PASSWORD, cfg.CONFIG_SERVER.MYSQL.HOST, cfg.CONFIG_SERVER.MYSQL.PORT, cfg.CONFIG_SERVER.MYSQL.DATABASE)
-	fmt.Println(uri)
-	var err error
-
-	db, err := sql.Open("mysql", uri)
-
+	connectDataBase()
+	sqlDB, err := DB.DB()
 	if err != nil {
-		log.Println("Error Open", err)
+		log.Panicln("DB err:", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
-	// See "Important settings" section.
-	db.SetConnMaxLifetime(time.Minute * 3)
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
+	// migrate DB
+	model.Migrate(DB.Debug())
 
-	err = db.Ping()
-	if err != nil {
-		panic(err)
-	}
-
-	err = migratedb(db)
-	if err != nil {
-		panic(err)
-	}
-
-	savesignal := newSVS(cfg)
-	savesignal.db = db
-	savesignal.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
-	DEBUG_LEVEL = cfg.SVSIGNAL.DEBUG_LEVEL
+	savesignal := newSVS()
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
-	hub := newHub()
-	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
-	hub.CH_SET_SIGNAL = savesignal.CH_SET_SIGNAL
+	value := model.IValue{}
+	res := DB.Debug().Where("signal_id = ?", 1).Select("id=(select max(id) from ivalue where utime<%d and signal_id=%d)").First(&value)
+	if res.Error != nil {
+		log.Println(res.Error)
+	}
+	//row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.ID, begin, signal.ID))
+
+	hub = newHub()
 	//hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
 	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
@@ -129,7 +156,7 @@ func main() {
 			QOS:  cfg.SVSIGNAL.RABBITMQ.QOS,
 			Name: cfg.SVSIGNAL.RABBITMQ.QUEUE_NAME,
 		},
-		hub.CH_MSG_AMPQ,
+		CH_MSG_AMPQ,
 	)
 	if err != nil {
 		log.Panicln("consumer error\n", err)
@@ -140,13 +167,11 @@ func main() {
 		Addr:       cfg.SVSIGNAL.HTTP.Address,
 		UnixSocket: cfg.SVSIGNAL.HTTP.UnixSocket,
 		svsignal:   savesignal,
-		cfg:        &cfg,
 	}
 	err = http.initUnixSocketServer()
 	if err != nil {
 		panic(err)
 	}
-	http.hub = hub
 	http.svsignal = savesignal
 	wg.Add(1)
 	go http.Run(&wg)

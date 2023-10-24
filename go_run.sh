@@ -1,1 +1,1 @@
-go run avg.go http.go main.go config.go http_handler.go hub.go migratedb.go savesignal.go
+go run . --pid-file /tmp/svsignal.pid --config-file ~/GO/src/github.com/lasaleks/svsignal/etc/config.yaml
