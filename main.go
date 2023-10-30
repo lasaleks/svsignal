@@ -23,8 +23,6 @@ import (
 var VERSION string
 var BUILD string
 
-var DEBUG_LEVEL = 0
-
 var (
 	CH_SAVE_VALUE chan ValueSignal
 	CH_SET_SIGNAL chan SetSignal
@@ -37,7 +35,7 @@ var (
 
 var (
 	config_file = flag.String("config-file", "etc/config.yaml", "path config file")
-	pid_file    = flag.String("pid", "", "path pid file")
+	pid_file    = flag.String("pid-file", "", "path pid file")
 	get_version = flag.Bool("version", false, "version")
 )
 
@@ -52,7 +50,6 @@ func connectDataBase() {
 		if err != nil {
 			log.Println("Error Open DB", err)
 		}
-		defer db.Close()
 
 		// See "Important settings" section.
 		db.SetConnMaxLifetime(time.Minute * 3)
@@ -73,7 +70,7 @@ func connectDataBase() {
 	}
 
 	if cfg.SVSIGNAL.SQLite != nil {
-		db, err := gorm.Open(sqlite.Open(""), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open(cfg.SVSIGNAL.SQLite.FILE), &gorm.Config{})
 		if err != nil {
 			log.Panicf("failed to connect DB; err:%s", err)
 		}
@@ -111,6 +108,9 @@ func main() {
 	fmt.Printf("%+v\n", cfg)
 
 	connectDataBase()
+	if cfg.SVSIGNAL.DEBUG_LEVEL >= 6 {
+		DB = DB.Debug()
+	}
 	sqlDB, err := DB.DB()
 	if err != nil {
 		log.Panicln("DB err:", err)
@@ -118,19 +118,18 @@ func main() {
 	defer sqlDB.Close()
 
 	// migrate DB
-	model.Migrate(DB.Debug())
+	model.Migrate(DB)
 
 	savesignal := newSVS()
+	savesignal.Load()
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
 	go savesignal.Run(&wg, ctx_db)
 
-	value := model.IValue{}
-	res := DB.Debug().Where("signal_id = ?", 1).Select("id=(select max(id) from ivalue where utime<%d and signal_id=%d)").First(&value)
-	if res.Error != nil {
-		log.Println(res.Error)
+	conn_rmq, err := gormq.NewConnect(cfg.SVSIGNAL.RABBITMQ.URL)
+	if err != nil {
+		log.Panicln("connect rabbitmq", err)
 	}
-	//row := s.db.QueryRow(fmt.Sprintf("SELECT id, utime, value, offline FROM svsignal_ivalue WHERE signal_id=%d and id=(select max(id) from svsignal_ivalue where utime<%d and signal_id=%d)", signal.ID, begin, signal.ID))
 
 	hub = newHub()
 	//hub.CH_REQUEST_HTTP_DB = savesignal.CH_REQUEST_HTTP
@@ -138,11 +137,6 @@ func main() {
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
 	go hub.run(&wg, ctx_hub)
-
-	conn_rmq, err := gormq.NewConnect(cfg.SVSIGNAL.RABBITMQ.URL)
-	if err != nil {
-		log.Panicln("connect rabbitmq", err)
-	}
 
 	chCons, err := gormq.NewChannelConsumer(
 		&wg, conn_rmq, []gormq.ExhangeOptions{

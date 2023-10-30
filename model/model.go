@@ -7,14 +7,14 @@ import (
 )
 
 type Group struct {
-	gorm.Model
+	ID      uint `gorm:"primarykey"`
 	Key     string
 	Name    string
 	Signals []Signal
 }
 
 type Signal struct {
-	gorm.Model
+	ID       uint `gorm:"primarykey"`
 	GroupID  uint
 	Key      string
 	Name     string
@@ -26,9 +26,9 @@ type Signal struct {
 }
 
 type MValue struct {
-	gorm.Model
+	ID       uint  `gorm:"primarykey"`
 	SignalID uint  `gorm:"index"`
-	UTime    int64 `gorm:"index"`
+	UTime    int64 `gorm:"index;column:utime;"`
 	Max      float32
 	Min      float32
 	Mean     float32
@@ -37,26 +37,30 @@ type MValue struct {
 }
 
 type IValue struct {
-	gorm.Model
+	ID       uint `gorm:"primarykey"`
 	SignalID uint
 	UTime    int64 `gorm:"index"`
-	Value    int32 `gorm:"index"`
+	Value    int32 `gorm:"index;column:utime;"`
 	OffLine  bool
 }
 
 type FValue struct {
-	gorm.Model
+	ID       uint  `gorm:"primarykey"`
 	SignalID uint  `gorm:"index"`
-	UTime    int64 `gorm:"index"`
+	UTime    int64 `gorm:"index;column:utime;"`
 	Value    float64
 	OffLine  bool
 }
 
 type Tag struct {
-	gorm.Model
+	ID       uint `gorm:"primarykey"`
 	SignalID uint
 	Tag      string
 	Value    string
+}
+
+func (Tag) TableName() string {
+	return "tags"
 }
 
 func Migrate(db *gorm.DB) {

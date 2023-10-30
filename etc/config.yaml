@@ -4,8 +4,8 @@ svsignal:
   debug_level: 0
   
   rabbitmq:
-    url: amqp://rabbit:rabbitie@rabbitmq:5672/?heartbeat=10
-    queue_name: "svsignal"
+    url: amqp://rabbit:rabbitie@192.168.67.3:5672/?heartbeat=10
+    queue_name: "svsignal1"
     qos: 100
 
   http:
@@ -16,18 +16,19 @@ svsignal:
 
   TypeDataBase: sqlite
 
-#  mysql:
-#    host: mysql
-#    user: apache2
-#    password: apache2data
-#    port: 3306
-#    database: insiteexpert_v4
+  mysql:
+    host: mysql
+    user: svs
+    password: svs
+    port: 3306
+    database: svsignal
 
-  sqlite:
-    file: "/usr/svsignal/database/svsignal.db"
-    pragma:
-      - "PRAGMA journal_mode = WAL"
-      - "PRAGMA synchronous = OFF"
+#  sqlite:
+#    # file: "/usr/svsignal/database/svsignal.db"
+#    file: "/home/lasaleks/GO/src/github.com/lasaleks/svsignal/database/svsignal.db"
+#    pragma:
+#      - "PRAGMA journal_mode = WAL"
+#      - "PRAGMA synchronous = OFF"
 
   bulk_size: 1000
   buffer_size: 10000
