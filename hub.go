@@ -6,24 +6,18 @@ import (
 	"log"
 	"regexp"
 	"sync"
-
-	"github.com/lasaleks/gormq"
 )
 
 type Hub struct {
-	debug_level   int
-	CH_MSG_AMPQ   chan gormq.MessageAmpq
-	re_rkey       *regexp.Regexp
-	CH_SAVE_VALUE chan ValueSignal
-	CH_SET_SIGNAL chan SetSignal
+	debug_level int
+	re_rkey     *regexp.Regexp
 }
 
 func newHub() *Hub {
 	//^svsignal.(\w+).(\w+)|([^\n]+)$
 	re_rkey, _ := regexp.Compile(`^svs\.(\w+)\.(\w+)\.(.+)$`)
 	return &Hub{
-		CH_MSG_AMPQ: make(chan gormq.MessageAmpq, 1),
-		re_rkey:     re_rkey,
+		re_rkey: re_rkey,
 		//CH_REQUEST_HTTP: make(chan RequestHttp, 1),
 	}
 }
@@ -57,9 +51,9 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 		case <-ctx.Done():
 			// log.Println("Hub run Done")
 			return
-		case msg, ok := <-h.CH_MSG_AMPQ:
+		case msg, ok := <-CH_MSG_AMPQ:
 			if ok {
-				if DEBUG_LEVEL >= 8 {
+				if cfg.SVSIGNAL.DEBUG_LEVEL >= 8 {
 					log.Printf("HUB exchange:%s routing_key:%s content_type:%s len:%d", msg.Exchange, msg.Routing_key, msg.Content_type, len(msg.Data))
 				}
 				ret_cmd := h.re_rkey.FindStringSubmatch(msg.Routing_key)
@@ -74,7 +68,7 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 						if err == nil {
 							data.group_key = sys_key
 							data.signal_key = sig_key
-							h.CH_SAVE_VALUE <- data
+							CH_SAVE_VALUE <- data
 						}
 					case "set":
 						sig := SetSignal{}
@@ -82,7 +76,7 @@ func (h *Hub) run(wg *sync.WaitGroup, ctx context.Context) {
 						if err == nil {
 							sig.group_key = sys_key
 							sig.signal_key = sig_key
-							h.CH_SET_SIGNAL <- sig
+							CH_SET_SIGNAL <- sig
 						}
 					}
 				}

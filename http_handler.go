@@ -263,7 +263,6 @@ func (h *RequestSaveValue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type TrendView struct {
 	templates []string
-	cfg       *Config
 }
 
 /*func TrimSuffix(s, suffix string) string {
@@ -337,7 +336,7 @@ func (h *TrendView) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Signals:       signals,
 		Begin:         begin,
 		End:           end,
-		TimeZone:      h.cfg.CONFIG_SERVER.TIME_ZONE,
+		TimeZone:      cfg.CONFIG_SERVER.TIME_ZONE,
 		Cols:          cols,
 		Height:        height,
 		UseGroupChart: UseGroupChart,

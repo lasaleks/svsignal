@@ -192,7 +192,6 @@ function update_chart(chart, y_fixed, signal_key, series_data, max_y, min_y, min
                             if (diff > 31536000000 * 5) {
                                 format = dtf.year
                             } else if (diff > 2592000000 * 5) {
-                                `chart_${idx}`,
                                 format = dtf.day
                             } else if (diff > 3600000 * 5) {
                                 format = dtf.hour

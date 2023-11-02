@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"errors"
@@ -11,6 +11,9 @@ import (
 
 // Конфигурация
 type Config struct {
+	SERVER_PATH_CFG string `yaml:"server_path_cfg"`
+	CONFIG_SERVER   configsrv.ConfigSrv
+
 	SVSIGNAL struct {
 		ID_DRIVER   int `yaml:"id_driver"`
 		DEBUG_LEVEL int `yaml:"debug_level"`
@@ -25,12 +28,23 @@ type Config struct {
 			User       string `yaml:"user"`
 			Password   string `yaml:"password"`
 		} `yaml:"http"`
-		BulkInsertBufferSize int   `yaml:"bulk_insert_buffer_size"`
-		BufferSize           int   `yaml:"buffer_size"`
-		PeriodSave           int64 `yaml:"period_save"`
+		BulkSize   int   `yaml:"bulk_size"`
+		BufferSize int   `yaml:"buffer_size"`
+		PeriodSave int64 `yaml:"period_save"`
+
+		MYSQL *struct {
+			HOST     string `yaml:"host"`
+			USER     string `yaml:"user"`
+			PASSWORD string `yaml:"password"`
+			PORT     int    `yaml:"port"`
+			DATABASE string `yaml:"database"`
+		} `yaml:"mysql"`
+
+		SQLite *struct {
+			FILE   string   `yaml:"file"`
+			PRAGMA []string `yaml:"pragma"`
+		}
 	} `yaml:"svsignal"`
-	SERVER_PATH_CFG string `yaml:"server_path_cfg"`
-	CONFIG_SERVER   configsrv.ConfigSrv
 }
 
 func (conf *Config) ParseConfig(config_file string) error {
@@ -46,6 +60,9 @@ func (conf *Config) ParseConfig(config_file string) error {
 	if err = conf.CONFIG_SERVER.ParseConfig(conf.SERVER_PATH_CFG); err != nil {
 		return errors.Join(fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
 		//return fmt.Errorf("%w; %w", fmt.Errorf("file server_path_cfg:%s parse error", conf.SERVER_PATH_CFG), err)
+	}
+	if conf.SVSIGNAL.MYSQL == nil && conf.SVSIGNAL.SQLite == nil {
+		return fmt.Errorf("not found connect to db, mysql or sqlite")
 	}
 	return nil
 }

@@ -15,10 +15,8 @@ type HttpSrv struct {
 	Addr       string
 	UnixSocket string
 	server     *http.Server
-	hub        *Hub
 	svsignal   *SVSignalDB
 	listen     net.Listener
-	cfg        *Config
 }
 
 func newUnixSocket(path string) (net.Listener, error) {
@@ -61,28 +59,24 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 			"./templates/trend_apx.page.html",
 			"./templates/base.layout.html",
 		},
-		cfg: h.cfg,
 	})
 
 	http.Handle("/svs/trend/apx/view2", &TrendView{templates: []string{
 		"./templates/trend_apx2.page.html",
 		"./templates/base.layout.html",
 	},
-		cfg: h.cfg,
 	})
 
 	http.Handle("/svs/trend/highchart/view", &TrendView{templates: []string{
 		"./templates/trend_highchart.page.html",
 		"./templates/base.layout.html",
 	},
-		cfg: h.cfg,
 	})
 
 	http.Handle("/svs/signal/", &TrendView{templates: []string{
 		"./templates/datasignal.page.html",
 		"./templates/base.layout.html",
 	},
-		cfg: h.cfg,
 	})
 
 	http.Handle("/svs/signals", &GroupSignalView{templates: []string{
@@ -98,8 +92,8 @@ func (h *HttpSrv) Run(wg *sync.WaitGroup) {
 	re_key, _ := regexp.Compile(`^(\w+)\.(.+)$`)
 	http.Handle("/svs/api/signal/getdata", &RequestSignalData{CH_REQUEST_HTTP: h.svsignal.CH_REQUEST_HTTP, re_key: re_key})
 	http.Handle("/svs/api/getlistsignal", &GetListSignal{h.svsignal.CH_REQUEST_HTTP})
-	http.Handle("/svs/api/savevalue", &RequestSaveValue{CH_SAVE_VALUE: h.hub.CH_SAVE_VALUE, re_key: re_key})
-	http.Handle("/svs/api/setsignal", &HTTPSetSignal{CH_SET_SIGNAL: h.hub.CH_SET_SIGNAL, re_key: re_key})
+	http.Handle("/svs/api/savevalue", &RequestSaveValue{CH_SAVE_VALUE: CH_SAVE_VALUE, re_key: re_key})
+	http.Handle("/svs/api/setsignal", &HTTPSetSignal{CH_SET_SIGNAL: CH_SET_SIGNAL, re_key: re_key})
 	http.Handle("/svs/api/status", &SRV_STATUS{})
 
 	log.Printf("Starting Http Server at %s\n", h.Addr)

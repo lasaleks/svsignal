@@ -16,8 +16,6 @@ func TestHubRun(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx := context.Background()
 
-	var cfg Config
-
 	hub := newHub()
 	hub.CH_SAVE_VALUE = make(chan ValueSignal, 1)
 	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
@@ -34,7 +32,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ := json.Marshal(val1)
 
-	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+	CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_rx",
 		Content_type: "text/plain",
@@ -50,7 +48,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ = json.Marshal(val2)
 
-	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+	CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_U",
 		Content_type: "text/plain",
@@ -66,7 +64,7 @@ func TestHubRun(t *testing.T) {
 	}
 	jData, _ = json.Marshal(val3)
 
-	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+	CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.save.IE.beacon_1234_rx",
 		Content_type: "text/plain",
@@ -122,19 +120,17 @@ func TestRmqSetSignal(t *testing.T) {
 	mock.ExpectQuery("^SELECT s.id, s.group_id, g.group_key, s.signal_key, s.name, s.type_save, s.period, s.delta FROM svsignal_signal s inner join svsignal_group g on g.id=s.group_id$").WillReturnRows(rows)
 	//-------
 
-	var cfg Config
-
 	// ch_ack := make(chan interface{}, 1)
 
-	savesignal := newSVS(Config{})
+	savesignal := newSVS()
 	savesignal.db = db
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
-	go savesignal.run(&wg, ctx_db)
+	go savesignal.Run(&wg, ctx_db)
 
 	hub := newHub()
-	hub.CH_SAVE_VALUE = savesignal.CH_SAVE_VALUE
-	hub.CH_SET_SIGNAL = savesignal.CH_SET_SIGNAL
+	hub.CH_SAVE_VALUE = CH_SAVE_VALUE
+	hub.CH_SET_SIGNAL = CH_SET_SIGNAL
 	hub.debug_level = cfg.SVSIGNAL.DEBUG_LEVEL
 	ctx_hub, cancel_hub := context.WithCancel(ctx)
 	wg.Add(1)
@@ -167,7 +163,7 @@ func TestRmqSetSignal(t *testing.T) {
 	mock.ExpectCommit()
 
 	jData, _ := json.Marshal(setsig)
-	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+	CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
@@ -203,14 +199,14 @@ func TestRmqSetSignal(t *testing.T) {
 	mock.ExpectCommit()
 
 	jData, _ = json.Marshal(setsig)
-	hub.CH_MSG_AMPQ <- gormq.MessageAmpq{
+	CH_MSG_AMPQ <- gormq.MessageAmpq{
 		Exchange:     "svsignal",
 		Routing_key:  "svs.set.IE.beacon_1236_rx",
 		Content_type: "text/plain",
 		Data:         jData,
 	}
 
-	for len(hub.CH_MSG_AMPQ) > 0 {
+	for len(CH_MSG_AMPQ) > 0 {
 		time.Sleep(time.Microsecond * 10)
 	}
 
