@@ -15,9 +15,22 @@ type Config struct {
 	CONFIG_SERVER   configsrv.ConfigSrv
 
 	SVSIGNAL struct {
-		ID_DRIVER   int `yaml:"id_driver"`
+		PPROF struct {
+			ENABEL    bool   `yaml:"enable"`
+			HTTP_ADDR string `yaml:"http_addr"`
+			BLOCK     bool   `yaml:"block"`
+			MUTEX     bool   `yaml:"mutex"`
+		} `yaml:"pprof"`
 		DEBUG_LEVEL int `yaml:"debug_level"`
-		RABBITMQ    struct {
+		GRPCServer  struct {
+			Address        string `yaml:"address"`
+			STREAM_DEFAULT *struct {
+				QOS             int `yaml:"qos"`
+				MAX_SIZE_BUFF   int `yaml:"max_size_buff"`
+				WAIT_ACK_TIMOUT int `yaml:"wait_ack_timeout"`
+			} `yaml:"stream-default,omitempty"`
+		} `yaml:"grpc-server"`
+		RABBITMQ struct {
 			URL        string `yaml:"url"`
 			QUEUE_NAME string `yaml:"queue_name"`
 			QOS        int    `yaml:"qos"`

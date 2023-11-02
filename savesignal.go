@@ -51,6 +51,13 @@ type BulkInsertBuffer struct {
 	fvalue_cnt int
 }
 
+type RequestData struct {
+	key         string
+	begin       int64
+	end         int64
+	CH_RESPONSE chan interface{}
+}
+
 type SVSignalDB struct {
 	db              *sql.DB // !!!! remove
 	group_id        map[uint]*model.Group
@@ -61,6 +68,7 @@ type SVSignalDB struct {
 	CH_REQUEST_HTTP chan interface{}
 	lt_save_values  int64
 	bulkBuffer      BulkInsertBuffer
+	mu              sync.RWMutex
 }
 
 func newSVS() *SVSignalDB {
@@ -104,6 +112,7 @@ func (s *SVSignalDB) Load() {
 		if !ok {
 			continue
 		}
+		group.Signals = append(group.Signals, signal)
 		s.signal_key[fmt.Sprintf("%s.%s", group.Key, signal.Key)] = signal
 	}
 	/*
@@ -151,11 +160,6 @@ func (s *SVSignalDB) Run(wg *sync.WaitGroup, ctx context.Context) {
 					if !ok {
 						request.CH_RESPONSE <- fmt.Errorf("error not found %s", signal_key)
 					} else {
-						name_group := ""
-						group, ok := s.group_key[request.groupkey]
-						if ok {
-							name_group = group.Name
-						}
 						var value_signal *SValueInt
 						if signal.TypeSave == 1 {
 							value_signal = s.svalueint[signal_key]
@@ -164,9 +168,24 @@ func (s *SVSignalDB) Run(wg *sync.WaitGroup, ctx context.Context) {
 							}
 						}
 
-						s.get_data_signal(s.db, request.CH_RESPONSE, name_group, signal, value_signal, request.begin, request.end, int(signal.TypeSave))
+						s.get_data_signal(s.db, request.CH_RESPONSE, signal, value_signal, request.begin, request.end)
 					}
 				}
+			}
+		case request := <-CH_REQUEST_DATA:
+			signal, ok := s.signal_key[request.key]
+			if !ok {
+				request.CH_RESPONSE <- fmt.Errorf("not found %s", request.key)
+			} else {
+				var value_signal *SValueInt
+				if signal.TypeSave == 1 {
+					value_signal = s.svalueint[request.key]
+					if value_signal != nil {
+						value_signal = &SValueInt{value: value_signal.value, utime: value_signal.utime, offline: value_signal.offline}
+					}
+				}
+
+				s.get_data_signal(s.db, request.CH_RESPONSE, signal, value_signal, request.begin, request.end)
 			}
 		case <-time.After(time.Second * 1):
 		}
@@ -409,29 +428,35 @@ func (s *SVSignalDB) get_data_signal_f(signal *model.Signal, begin int64, end in
 	return fvalues, nil
 }
 
-func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_group string, signal *model.Signal, value_signal_i *SValueInt, begin int64, end int64, type_table int) {
+func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, signal *model.Signal, value_signal_i *SValueInt, begin int64, end int64) {
 	if signal == nil {
-		out <- fmt.Errorf("error get_data_signal signal:nil")
+		out <- fmt.Errorf("signal:nil error")
 		return
 	}
+
+	group, found := s.group_id[signal.GroupID]
+	if !found {
+		out <- fmt.Errorf("not found group")
+		return
+	}
+
 	tags := []RLS_Tag{}
 	for _, tag := range signal.Tags {
 		tags = append(tags, RLS_Tag{Tag: tag.Tag, Value: tag.Value})
 	}
 
-	switch type_table {
+	switch signal.TypeSave {
 	case TYPE_IVALUE:
 		ivalues, err := s.get_data_signal_i(signal, value_signal_i, begin, end)
 		if err != nil {
 			out <- fmt.Errorf("error key:%s %s", signal.Key, err)
 		} else {
-			group := s.group_id[signal.GroupID]
 			out <- ResponseDataSignalT1{
 				GroupKey:   group.Key,
-				GroupName:  name_group,
+				GroupName:  group.Name,
 				SignalKey:  signal.Key,
 				SignalName: signal.Name,
-				TypeSave:   type_table,
+				TypeSave:   int(signal.TypeSave),
 				Values:     *ivalues,
 				Tags:       tags,
 			}
@@ -441,20 +466,19 @@ func (s *SVSignalDB) get_data_signal(db *sql.DB, out chan interface{}, name_grou
 		if err != nil {
 			out <- fmt.Errorf("error key:%s %s", signal.Key, err)
 		} else {
-			group := s.group_id[signal.GroupID]
 			out <- ResponseDataSignalT2{
 				GroupKey:   group.Key,
-				GroupName:  name_group,
+				GroupName:  group.Name,
 				SignalKey:  signal.Key,
 				SignalName: signal.Name,
-				TypeSave:   type_table,
+				TypeSave:   int(signal.TypeSave),
 				Values:     *fvalues,
 				Tags:       tags,
 			}
 		}
 	case TYPE_MVALUE:
 	default:
-		out <- fmt.Errorf("error request data signal; type not found %d", type_table)
+		out <- fmt.Errorf("error request data signal; type not found %d", signal.TypeSave)
 		return
 	}
 }

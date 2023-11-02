@@ -24,13 +24,15 @@ var VERSION string
 var BUILD string
 
 var (
-	CH_SAVE_VALUE chan ValueSignal
-	CH_SET_SIGNAL chan SetSignal
-	CH_MSG_AMPQ   chan gormq.MessageAmpq
+	CH_SAVE_VALUE   chan ValueSignal
+	CH_SET_SIGNAL   chan SetSignal
+	CH_MSG_AMPQ     chan gormq.MessageAmpq
+	CH_REQUEST_DATA chan RequestData
 
-	cfg config.Config
-	DB  *gorm.DB
-	hub *Hub
+	cfg        config.Config
+	DB         *gorm.DB
+	hub        *Hub
+	savesignal *SVSignalDB
 )
 
 var (
@@ -89,6 +91,7 @@ func main() {
 	CH_SAVE_VALUE = make(chan ValueSignal, 1)
 	CH_SET_SIGNAL = make(chan SetSignal, 1)
 	CH_MSG_AMPQ = make(chan gormq.MessageAmpq, 1)
+	CH_REQUEST_DATA = make(chan RequestData, 1)
 
 	flag.Parse()
 	fmt.Println(VERSION+" build:", BUILD)
@@ -118,9 +121,9 @@ func main() {
 	defer sqlDB.Close()
 
 	// migrate DB
-	model.Migrate(DB)
+	model.Migrate(DB.Debug())
 
-	savesignal := newSVS()
+	savesignal = newSVS()
 	savesignal.Load()
 	ctx_db, cancel_db := context.WithCancel(ctx)
 	wg.Add(1)
@@ -171,8 +174,14 @@ func main() {
 	go http.Run(&wg)
 	//-------
 
+	// GRPC
+	grpc_srv := gRPCServer{Addr: cfg.SVSIGNAL.GRPCServer.Address}
+	wg.Add(1)
+	go grpc_srv.run(&wg)
+
 	f_shutdown := func(ctx context.Context) {
 		fmt.Println("ShutDown")
+		grpc_srv.Close()
 		// close rabbitmq
 		conn_rmq.Close()
 		chCons.Close()
@@ -180,7 +189,6 @@ func main() {
 		cancel_hub()
 		cancel_db()
 		http.Close()
-
 	}
 	wg.Add(1)
 	go goutils.WaitSignalExit(&wg, ctx, f_shutdown)

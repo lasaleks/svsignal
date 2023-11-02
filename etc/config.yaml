@@ -1,7 +1,16 @@
 server_path_cfg: /usr/insiteexpert/etc/server.yaml
 
 svsignal:
+  pprof:
+    enable: false
+    block: true
+    mutex: true
+    http_addr: :6060
+
   debug_level: 0
+  
+  grpc-server:        
+    address: :8818    # адрес, порт grpc сервера на котором будет работать сервис
   
   rabbitmq:
     url: amqp://rabbit:rabbitie@192.168.67.3:5672/?heartbeat=10
@@ -16,19 +25,19 @@ svsignal:
 
   TypeDataBase: sqlite
 
-  mysql:
-    host: mysql
-    user: svs
-    password: svs
-    port: 3306
-    database: svsignal
+#  mysql:
+#    host: mysql
+#    user: svs
+#    password: svs
+#    port: 3306
+#    database: svsignal
 
-#  sqlite:
-#    # file: "/usr/svsignal/database/svsignal.db"
-#    file: "/home/lasaleks/GO/src/github.com/lasaleks/svsignal/database/svsignal.db"
-#    pragma:
-#      - "PRAGMA journal_mode = WAL"
-#      - "PRAGMA synchronous = OFF"
+  sqlite:
+    # file: "/usr/svsignal/database/svsignal.db"
+    file: "/datadisk/svsignal_db/svsignal.db"
+    pragma:
+      - "PRAGMA journal_mode = WAL"
+      - "PRAGMA synchronous = OFF"
 
   bulk_size: 1000
   buffer_size: 10000
