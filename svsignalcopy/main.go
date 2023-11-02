@@ -14,10 +14,13 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var source = flag.String("source", "apache2:apache2data@tcp(mysql:3306)/insiteexpert_v4?charset=utf8&parseTime=True&loc=Local", "")
-var source_type = flag.String("source-type", "mysql_data_v1", "mysql/mysql_data_v1/sqlite")
-var dest_type = flag.String("dest-type", "sqlite", "")
-var dest = flag.String("dest", "svsignal.db", "")
+var (
+	source      = flag.String("source", "apache2:apache2data@tcp(mysql:3306)/insiteexpert_v4?charset=utf8&parseTime=True&loc=Local", "")
+	source_type = flag.String("source-type", "mysql_data_v1", "mysql/mysql_data_v1/sqlite")
+	dest_type   = flag.String("dest-type", "sqlite", "mysql/sqlite")
+	dest        = flag.String("dest", "svsignal.db", "")
+	get_version = flag.Bool("version", false, "version")
+)
 
 var new_logger = logger.New(
 	log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -41,8 +44,16 @@ var EXECS = []string{
 	"PRAGMA synchronous = OFF",
 }
 
+var VERSION string
+var BUILD string
+
 func main() {
 	flag.Parse()
+	fmt.Println(VERSION+" build:", BUILD)
+	if *get_version {
+		return
+	}
+
 	var source_db *gorm.DB
 	var dest_db *gorm.DB
 	var err error
@@ -65,7 +76,7 @@ func main() {
 	case "mysql_data_v1":
 		source_db, err = gorm.Open(mysql.Open(*source), &config)
 		if err != nil {
-			log.Panicln("failed to connect database", *source)
+			log.Panicln("failed to connect database", err)
 		}
 	default:
 		log.Panicln("typeDB error value:", *source_type)
@@ -75,7 +86,7 @@ func main() {
 	case "sqlite":
 		dest_db, err = gorm.Open(sqlite.Open(*dest), &config)
 		if err != nil {
-			panic("failed to connect dest database")
+			log.Panicln("failed to connect dest database err:", err)
 		}
 		for _, exec := range EXECS {
 			fmt.Println(exec)
@@ -154,9 +165,17 @@ func main() {
 
 	fvalues := make([]model.FValue, limit)
 	values_cnt := 0
-	all := 0
-	for {
-		rows, err = db.Query("SELECT `id`, `signal_id`, `utime`, `value`, `offline` FROM `svsignal_fvalue` order by id LIMIT ?,?", begin, limit)
+	min_id := 0
+	max_id := 0
+	row := db.QueryRow("SELECT min(id), max(id) from svsignal_fvalue")
+	if row.Err() == nil {
+		row.Scan(&min_id, &max_id)
+		begin = min_id
+	}
+
+	for begin < max_id {
+		fmt.Printf("<query svsignal_fvalue id>=%d and id <%d", begin, begin+limit)
+		rows, err = db.Query("SELECT `id`, `signal_id`, `utime`, `value`, `offline` FROM `svsignal_fvalue` where id>=? and id<? order by id", begin, begin+limit)
 		if err != nil {
 			log.Panicln(err)
 		}
@@ -172,18 +191,20 @@ func main() {
 			}
 			fvalues[values_cnt] = val
 			values_cnt++
-			all++
 		}
+		fmt.Printf(">\n")
 		rows.Close()
-
-		res := dest_db.Create(fvalues[:values_cnt])
+		fmt.Printf("<insert rows:%d", values_cnt)
+		tx := dest_db.Begin()
+		res := tx.Create(fvalues[:values_cnt])
 		if res.Error != nil {
 			log.Println(res.Error)
 		}
-
-		if values_cnt < limit {
+		tx.Commit()
+		fmt.Printf(">\n")
+		/*if values_cnt < limit {
 			break
-		}
+		}*/
 		values_cnt = 0
 		begin = begin + limit
 	}
@@ -193,9 +214,17 @@ func main() {
 
 	ivalues := make([]model.IValue, limit)
 	values_cnt = 0
-	all = 0
-	for {
-		rows, err = db.Query("SELECT `id`, `signal_id`, `utime`, `value`, `offline` FROM `svsignal_ivalue` order by id LIMIT ?,?", begin, limit)
+	min_id = 0
+	max_id = 0
+	row = db.QueryRow("SELECT min(id), max(id) from svsignal_ivalue")
+	if row.Err() == nil {
+		row.Scan(&min_id, &max_id)
+		begin = min_id
+	}
+
+	for begin < max_id {
+		fmt.Printf("<query svsignal_ivalue id>=%d and id <%d", begin, begin+limit)
+		rows, err = db.Query("SELECT `id`, `signal_id`, `utime`, `value`, `offline` FROM `svsignal_ivalue` where id>=? and id<? order by id", begin, begin+limit)
 		if err != nil {
 			log.Panicln(err)
 		}
@@ -211,18 +240,20 @@ func main() {
 			}
 			ivalues[values_cnt] = val
 			values_cnt++
-			all++
 		}
+		fmt.Printf(">\n")
 		rows.Close()
-
-		res := dest_db.Create(ivalues[:values_cnt])
+		fmt.Printf("<insert rows:%d", values_cnt)
+		tx := dest_db.Begin()
+		res := tx.Create(ivalues[:values_cnt])
 		if res.Error != nil {
 			log.Println(res.Error)
 		}
-
-		if values_cnt < limit {
+		tx.Commit()
+		fmt.Printf(">\n")
+		/*if values_cnt < limit {
 			break
-		}
+		}*/
 		values_cnt = 0
 		begin = begin + limit
 	}

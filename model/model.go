@@ -10,7 +10,7 @@ type Group struct {
 	ID      uint `gorm:"primarykey"`
 	Key     string
 	Name    string
-	Signals []Signal
+	Signals []*Signal
 }
 
 type Signal struct {
@@ -27,8 +27,8 @@ type Signal struct {
 
 type MValue struct {
 	ID       uint  `gorm:"primarykey"`
-	SignalID uint  `gorm:"index:idx_sig_utime,priority:2;"`
-	UTime    int64 `gorm:"index:idx_sig_utime,priority:1;column:utime;"`
+	SignalID uint  `gorm:"index:idx_m_sig_utime,priority:2;"`
+	UTime    int64 `gorm:"index:idx_m_sig_utime,priority:1;column:utime;"`
 	Max      float32
 	Min      float32
 	Mean     float32
@@ -38,16 +38,16 @@ type MValue struct {
 
 type IValue struct {
 	ID       uint  `gorm:"primarykey"`
-	SignalID uint  `gorm:"index:idx_sig_utime,priority:2;"`
-	UTime    int64 `gorm:"index:idx_sig_utime,priority:1;column:utime;"`
+	SignalID uint  `gorm:"index:idx_i_sig_utime,priority:2;"`
+	UTime    int64 `gorm:"index:idx_i_sig_utime,priority:1;column:utime;"`
 	Value    int32
 	OffLine  bool
 }
 
 type FValue struct {
 	ID       uint  `gorm:"primarykey"`
-	SignalID uint  `gorm:"index:idx_sig_utime,priority:2;"`
-	UTime    int64 `gorm:"index:idx_sig_utime,priority:1;column:utime;"`
+	SignalID uint  `gorm:"index:idx_f_sig_utime,priority:2;"`
+	UTime    int64 `gorm:"index:idx_f_sig_utime,priority:1;column:utime;"`
 	Value    float64
 	OffLine  bool
 }
