@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 
-	svsignal "github.com/lasaleks/svsignal_proto"
+	svsignal "github.com/lasaleks/svsignal/proto"
 	"google.golang.org/grpc"
 )
 

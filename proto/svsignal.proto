@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+// python -m grpc_tools.protoc -I. -I$GOPATH/src --python_out=. --grpc_python_out=. *.proto
+// protoc -I. -I$GOPATH/src --go_out=$GOPATH/src --go-grpc_out=require_unimplemented_servers=false:$GOPATH/src --grpc-gateway_out=logtostderr=true:$GOPATH/src  *.proto
+
+
+package svsignal;
+
+option go_package = "github.com/lasaleks/svsignal/svsignal/proto;svsignal";
+
+import "google/api/annotations.proto";
+
+message Nothing { bool empty = 1; }
+
+message Group {
+	string Key=1;
+	string Name=2;
+}
+
+message Groups {
+    map<string, Group> Groups = 1;
+}
+
+message MsgKey { 
+    string Key = 1;
+}
+
+message Tag {
+	string Tag=1;
+	string Value=2;   
+}
+
+enum TypeSignal {
+	TYPE_IVALUE = 0;
+	TYPE_FVALUE = 1;
+	TYPE_MVALUE = 2;
+}
+
+message Signal {
+    string Key=1;
+    string GroupKey=2;
+	string Name =3;
+	TypeSignal TypeSave=4;
+	int32 Period=5;
+	float Delta=6;
+    repeated Tag Tags=7;
+}
+
+message Signals {
+    map<string, Signal> Signals = 1;
+}
+
+message RequestData {
+    string SignalKey=1;
+    int64 Begin=2;
+    int64 End=3;
+}
+
+message MValue {
+    int64 UTime =1;
+    double Min =2;
+    double Max =3;
+    double Avg =4;
+    bool NULL=5;
+}
+
+message IValue {
+    int64 UTime =1;
+    int32 Value =2;
+    bool NULL=3;
+}
+
+message FValue {
+    int64 UTime =1;
+    double Value =2;
+    bool NULL=3;
+}
+
+//В зависимости от типа данных, возвращается один из array IValue,FValue,MFValue
+message ResponseData {
+    TypeSignal TypeSignal=1;
+    repeated IValue IValues=2;
+    repeated FValue FValues=3;
+    repeated MValue MValues=4;
+}
+
+message MsgSaveValue {
+    string SignalKey=1;
+    double Value=2;
+}
+
+message SignalTag {
+    string SignalKey=1;
+    Tag Tag=2;
+}
+
+service SVSignal {
+    rpc CreateGroup(Group) returns (Nothing) {}
+    rpc UpdateGroup(Group) returns (Nothing) {}
+    rpc DeleteGroup(Group) returns (Nothing) {}
+    rpc GetAllGroup(Nothing) returns (Groups) {
+        option (google.api.http) = {
+            get: "/diagemn/v1/group/all"
+        };
+    }
+    rpc GetGroup(MsgKey) returns (Group) {
+        option (google.api.http) = {
+            get: "/diagemn/v1/group/{Key}"
+        };
+    }
+
+    rpc CreateSignal(Signal) returns (Nothing) {}
+    rpc UpdateSignal(Signal) returns (Nothing) {}
+    rpc DeleteSignal(Signal) returns (Nothing) {}
+    rpc GetSignals(MsgKey) returns (Signals) {
+        option (google.api.http) = {
+            get: "/diagemn/v1/group/{Key}/signals"
+        };
+    }
+    rpc GetSignal(MsgKey) returns (Signal) {
+        option (google.api.http) = {
+            get: "/diagemn/v1/signal/{Key}"
+        };
+    }
+    rpc CreateTag(SignalTag) returns (Nothing) {}
+    rpc UpdateTag(SignalTag) returns (Nothing) {}
+    rpc DeleteTag(SignalTag) returns (Nothing) {}
+
+    rpc GetData(RequestData) returns (ResponseData) {
+        option (google.api.http) = {
+            get: "/diagemn/v1/signal/data/{SignalKey}/{Begin}/{End}"
+        };
+    }
+    rpc SaveValue(MsgSaveValue) returns (Nothing) {}
+}

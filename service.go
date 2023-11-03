@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	svsignal "github.com/lasaleks/svsignal_proto"
+	goutils "github.com/lasaleks/go-utils"
+	svsignal "github.com/lasaleks/svsignal/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -131,20 +132,29 @@ func (s *SVSignalDB) GetData(ctx context.Context, request *svsignal.RequestData)
 		key:         request.SignalKey,
 		CH_RESPONSE: CH_RESPONSE,
 	}
-	response := <-CH_RESPONSE
-	switch response.(type) {
+
+	resp := <-CH_RESPONSE
+	switch response := resp.(type) {
 	case error:
 		return nil, status.Errorf(codes.Internal, fmt.Sprintf("%v", response))
 	case ResponseDataSignalT1:
-		break
+		res := svsignal.ResponseData{TypeSignal: svsignal.TypeSignal_TYPE_IVALUE, IValues: make([]*svsignal.IValue, len(response.Values))}
+		for i := 0; i < len(response.Values); i++ {
+			res.IValues[i] = &svsignal.IValue{UTime: response.Values[i][1], Value: int32(response.Values[i][2]), NULL: goutils.IntToBool(int(response.Values[i][3]))}
+		}
+		return &res, nil
 	case ResponseDataSignalT2:
-		break
+		res := svsignal.ResponseData{TypeSignal: svsignal.TypeSignal_TYPE_FVALUE, FValues: make([]*svsignal.FValue, len(response.Values))}
+		for i := 0; i < len(response.Values); i++ {
+			res.FValues[i] = &svsignal.FValue{UTime: response.Values[i][1].(int64), Value: response.Values[i][2].(float64), NULL: goutils.IntToBool(int(response.Values[i][3].(int64)))}
+		}
+		return &res, nil
 	}
-
-	sig, found := s.signal_key[key.Key]
-	if !found {
-		return nil, status.Errorf(codes.NotFound, "not found signal")
-	}
+	/*
+		sig, found := s.signal_key[key.Key]
+		if !found {
+			return nil, status.Errorf(codes.NotFound, "not found signal")
+		}*/
 	return nil, nil
 }
 

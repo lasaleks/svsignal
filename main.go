@@ -121,7 +121,7 @@ func main() {
 	defer sqlDB.Close()
 
 	// migrate DB
-	model.Migrate(DB.Debug())
+	model.Migrate(DB)
 
 	savesignal = newSVS()
 	savesignal.Load()
