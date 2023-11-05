@@ -100,12 +100,12 @@ service SVSignal {
     rpc DeleteGroup(Group) returns (Nothing) {}
     rpc GetAllGroup(Nothing) returns (Groups) {
         option (google.api.http) = {
-            get: "/diagemn/v1/group/all"
+            get: "/svsignal/api/v1/group/all"
         };
     }
     rpc GetGroup(MsgKey) returns (Group) {
         option (google.api.http) = {
-            get: "/diagemn/v1/group/{Key}"
+            get: "/svsignal/api/v1/group/get/{Key}"
         };
     }
 
@@ -114,12 +114,12 @@ service SVSignal {
     rpc DeleteSignal(Signal) returns (Nothing) {}
     rpc GetSignals(MsgKey) returns (Signals) {
         option (google.api.http) = {
-            get: "/diagemn/v1/group/{Key}/signals"
+            get: "/svsignal/api/v1/group/{Key}/signals/all"
         };
     }
     rpc GetSignal(MsgKey) returns (Signal) {
         option (google.api.http) = {
-            get: "/diagemn/v1/signal/{Key}"
+            get: "/svsignal/api/v1/signal/get/{Key}"
         };
     }
     rpc CreateTag(SignalTag) returns (Nothing) {}
@@ -128,7 +128,7 @@ service SVSignal {
 
     rpc GetData(RequestData) returns (ResponseData) {
         option (google.api.http) = {
-            get: "/diagemn/v1/signal/data/{SignalKey}/{Begin}/{End}"
+            get: "/svsignal/api/v1/signal/getdata/{SignalKey}/{Begin}/{End}"
         };
     }
     rpc SaveValue(MsgSaveValue) returns (Nothing) {}

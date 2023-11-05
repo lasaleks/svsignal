@@ -58,6 +58,13 @@ type Config struct {
 			PRAGMA []string `yaml:"pragma"`
 		}
 	} `yaml:"svsignal"`
+
+	SVSIGNAL_HTTP_GATEWAY struct {
+		DEBUG_LEVEL      int    `yaml:"debug_level"`
+		GPRC_ADDRESS     string `yaml:"grpc_address"`
+		PROXY_HTTP_ADDR  string `yaml:"proxy_http_addr"`
+		PROXY_UNIXSOCKET string `yaml:"proxy_unixsocket"`
+	} `yaml:"svsignal_http_gateway"`
 }
 
 func (conf *Config) ParseConfig(config_file string) error {

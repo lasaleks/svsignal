@@ -17,11 +17,11 @@ svsignal:
     queue_name: "svsignal1"
     qos: 100
 
-  http:
-    # address: :5501
-    unixsocket: /usr/insiteexpert_v4/sock/svsignal.sock
-    user: root
-    password: 234123412
+#  http:
+#    # address: :5501
+#    unixsocket: /usr/insiteexpert_v4/sock/svsignal.sock
+#    user: root
+#    password: 234123412
 
   TypeDataBase: sqlite
 
@@ -42,3 +42,9 @@ svsignal:
   bulk_size: 1000
   buffer_size: 10000
   period_save: 60
+
+svsignal_http_gateway:
+  debug_level: 0
+  grpc_address: :8818
+#  proxy_http_addr: :8002
+  proxy_unixsocket: /usr/insiteexpert_v4/sock/svsignal.sock

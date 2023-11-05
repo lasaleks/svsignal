@@ -160,7 +160,7 @@ func main() {
 	}
 
 	//---http
-	http := HttpSrv{
+	/*http := HttpSrv{
 		Addr:       cfg.SVSIGNAL.HTTP.Address,
 		UnixSocket: cfg.SVSIGNAL.HTTP.UnixSocket,
 		svsignal:   savesignal,
@@ -171,7 +171,7 @@ func main() {
 	}
 	http.svsignal = savesignal
 	wg.Add(1)
-	go http.Run(&wg)
+	go http.Run(&wg)*/
 	//-------
 
 	// GRPC
@@ -188,7 +188,7 @@ func main() {
 
 		cancel_hub()
 		cancel_db()
-		http.Close()
+		//http.Close()
 	}
 	wg.Add(1)
 	go goutils.WaitSignalExit(&wg, ctx, f_shutdown)

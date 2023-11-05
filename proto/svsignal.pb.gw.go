@@ -327,7 +327,7 @@ func RegisterSVSignalHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetAllGroup", runtime.WithHTTPPathPattern("/diagemn/v1/group/all"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetAllGroup", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/all"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -350,7 +350,7 @@ func RegisterSVSignalHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetGroup", runtime.WithHTTPPathPattern("/diagemn/v1/group/{Key}"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetGroup", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/get/{Key}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -373,7 +373,7 @@ func RegisterSVSignalHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetSignals", runtime.WithHTTPPathPattern("/diagemn/v1/group/{Key}/signals"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetSignals", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/{Key}/signals/all"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -396,7 +396,7 @@ func RegisterSVSignalHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetSignal", runtime.WithHTTPPathPattern("/diagemn/v1/signal/{Key}"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetSignal", runtime.WithHTTPPathPattern("/svsignal/api/v1/signal/get/{Key}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -419,7 +419,7 @@ func RegisterSVSignalHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetData", runtime.WithHTTPPathPattern("/diagemn/v1/signal/data/{SignalKey}/{Begin}/{End}"))
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/svsignal.SVSignal/GetData", runtime.WithHTTPPathPattern("/svsignal/api/v1/signal/getdata/{SignalKey}/{Begin}/{End}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -481,7 +481,7 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetAllGroup", runtime.WithHTTPPathPattern("/diagemn/v1/group/all"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetAllGroup", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/all"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -501,7 +501,7 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetGroup", runtime.WithHTTPPathPattern("/diagemn/v1/group/{Key}"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetGroup", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/get/{Key}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -521,7 +521,7 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetSignals", runtime.WithHTTPPathPattern("/diagemn/v1/group/{Key}/signals"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetSignals", runtime.WithHTTPPathPattern("/svsignal/api/v1/group/{Key}/signals/all"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -541,7 +541,7 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetSignal", runtime.WithHTTPPathPattern("/diagemn/v1/signal/{Key}"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetSignal", runtime.WithHTTPPathPattern("/svsignal/api/v1/signal/get/{Key}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -561,7 +561,7 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetData", runtime.WithHTTPPathPattern("/diagemn/v1/signal/data/{SignalKey}/{Begin}/{End}"))
+		rctx, err := runtime.AnnotateContext(ctx, mux, req, "/svsignal.SVSignal/GetData", runtime.WithHTTPPathPattern("/svsignal/api/v1/signal/getdata/{SignalKey}/{Begin}/{End}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -581,15 +581,15 @@ func RegisterSVSignalHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 }
 
 var (
-	pattern_SVSignal_GetAllGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"diagemn", "v1", "group", "all"}, ""))
+	pattern_SVSignal_GetAllGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"svsignal", "api", "v1", "group", "all"}, ""))
 
-	pattern_SVSignal_GetGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"diagemn", "v1", "group", "Key"}, ""))
+	pattern_SVSignal_GetGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"svsignal", "api", "v1", "group", "get", "Key"}, ""))
 
-	pattern_SVSignal_GetSignals_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"diagemn", "v1", "group", "Key", "signals"}, ""))
+	pattern_SVSignal_GetSignals_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 2, 5, 2, 6}, []string{"svsignal", "api", "v1", "group", "Key", "signals", "all"}, ""))
 
-	pattern_SVSignal_GetSignal_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"diagemn", "v1", "signal", "Key"}, ""))
+	pattern_SVSignal_GetSignal_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5}, []string{"svsignal", "api", "v1", "signal", "get", "Key"}, ""))
 
-	pattern_SVSignal_GetData_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6}, []string{"diagemn", "v1", "signal", "data", "SignalKey", "Begin", "End"}, ""))
+	pattern_SVSignal_GetData_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 1, 0, 4, 1, 5, 6, 1, 0, 4, 1, 5, 7}, []string{"svsignal", "api", "v1", "signal", "getdata", "SignalKey", "Begin", "End"}, ""))
 )
 
 var (

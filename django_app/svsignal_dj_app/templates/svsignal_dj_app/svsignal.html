@@ -25,18 +25,19 @@
 <link rel="stylesheet" href="/static/datetimepicker/jquery.datetimepicker.min.css">
 <script type="text/javascript" src="/static/datetimepicker/jquery.datetimepicker.full.min.js"></script>
 
-<link href="/static/svs/css/trend_apx2.css"  rel="stylesheet">
-<script src="/static/svs/js/trend_apx2.js" type="text/javascript"></script>
 
 <script>
-//Signals = [{{range .Signals}}"{{ . }}",{{else}}{{end}}];
-Begin = {{Begin}};
-End = {{End}};
-TimeZone = "{{TimeZone}}";
-Cols = {{Cols}};
-Height = '{{Height}}';
-UseGroupChart = {{.UseGroupChart}};
+var Signals = [{% for name in Signals %}"{{name}}",{% endfor %}];
+var Begin = {{Begin}};
+var End = {{End}};
+var TimeZone = "{{TimeZone}}";
+var Cols = {{Cols}};
+var Height = '{{Height}}';
+var UseGroupChart = {{GroupChart}};
 </script>
+
+<link href="/static/svsignal_dj_app/css/svsignal.css"  rel="stylesheet">
+<script src="/static/svsignal_dj_app/js/svsignal.js" type="text/javascript"></script>
 <div class="container-fluid" id="container">
   <div class="row">
     <div class="col text-center p-2">
