@@ -13,7 +13,8 @@ svsignal:
     address: :8818    # адрес, порт grpc сервера на котором будет работать сервис
   
   rabbitmq:
-    url: amqp://rabbit:rabbitie@192.168.67.3:5672/?heartbeat=10
+    # url: amqp://rabbit:rabbitie@192.168.67.3:5672/?heartbeat=10
+    url: amqp://rabbit:rabbitie@rabbitmq:5672/?heartbeat=10
     queue_name: "svsignal1"
     qos: 100
 
