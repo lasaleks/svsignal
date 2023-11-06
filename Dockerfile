@@ -17,7 +17,7 @@ COPY . .
 
 #RUN go build -o hello hello.go
 
-RUN env GOOS=linux GOARCH=arm go build -a -ldflags="-X main.VERSION=$VERSION -X main.BUILD=$date" -o svsignal.bin
+RUN env GOOS=linux GOARCH=amd64 go build -a -ldflags="-X main.VERSION=$VERSION -X main.BUILD=$date" -o svsignal.bin
 
 FROM alpine
 

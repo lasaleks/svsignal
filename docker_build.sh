@@ -1,2 +1,3 @@
-VERSION=`git describe --tags`
-docker build --tag=svsignalnew:$VERSION .
+#VERSION=`git describe --tags`
+# $VERSION
+docker build --tag=svsignalnew .
