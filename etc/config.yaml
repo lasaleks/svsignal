@@ -16,19 +16,19 @@ svsignal:
 
   TypeDataBase: sqlite
 
-  mysql:
-    host: mysql
-    user: svs
-    password: svs
-    port: 3306
-    database: svsignal
+#  mysql:
+#    host: mysql
+#    user: svs
+#    password: svs
+#    port: 3306
+#    database: svsignal
 
-#  sqlite:
-#    # file: "/usr/svsignal/database/svsignal.db"
-#    file: "/home/lasaleks/GO/src/github.com/lasaleks/svsignal/database/svsignal.db"
-#    pragma:
-#      - "PRAGMA journal_mode = WAL"
-#      - "PRAGMA synchronous = OFF"
+  sqlite:
+    # file: "/usr/svsignal/database/svsignal.db"
+    file: "/datadisk/svsignal_db/svsignal.db"
+    pragma:
+      - "PRAGMA journal_mode = WAL"
+      - "PRAGMA synchronous = OFF"
 
   bulk_size: 1000
   buffer_size: 10000

@@ -1,0 +1,34 @@
+TimeZone: Asia/Novokuznetsk
+
+redis:
+  address: redis:6379
+
+mysql:
+  host: mysql
+  user: apache2
+  password: apache2data
+  port: 3306
+  database: insiteexpert_v4
+
+# рабочая смена
+WorkingShift:
+  BeginingFirstShift: 34800 #21600
+  NumberOfShift: 3
+
+# параметры подключения к микросервису sppd
+grpc-sppd:
+  address: :8802
+
+# параметры подключения к микросервису sbeacon
+grpc-sbeacon:
+  address: :8812
+
+# параметры подключения к микросервису alarmzone
+grpc-alarmzone:
+  address: :8814
+
+grpc-saux:
+  address: :8815
+
+grpc-blzone:
+  address: :8808

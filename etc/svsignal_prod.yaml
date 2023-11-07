@@ -1,0 +1,25 @@
+server_path_cfg: /app/svsignal/etc/server.yaml
+
+svsignal:
+  debug_level: 0
+  
+  rabbitmq:
+    url: amqp://rabbit:rabbitie@rabbitmq:5672/
+    queue_name: "svsignal"
+    qos: 100
+
+  http:
+    unixsocket: /sock/svsignal.sock
+    user: root
+    password: 234123412
+
+  TypeDataBase: sqlite
+  sqlite:
+    file: /app/svsignal/database/svsignal.db
+    pragma:
+      - "PRAGMA journal_mode = WAL"
+      - "PRAGMA synchronous = OFF"
+
+  bulk_size: 1000
+  buffer_size: 10000
+  period_save: 60
