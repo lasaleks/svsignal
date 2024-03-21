@@ -4,7 +4,7 @@ VERSION := $(shell git describe --tags)
 BUILD_DATE := $(shell date -u +%d%m%y.%H%M%S)
 DOCKER_IMAGE := svsignal
 IMAGE_STAGING := dregistryserver:5043/svsignal
- 
+
 docker: 
 	docker build --build-arg "version=$(VERSION)" --build-arg "build_date=$(BUILD_DATE)" --tag=$(DOCKER_IMAGE):$(VERSION) --file Dockerfile .
 
