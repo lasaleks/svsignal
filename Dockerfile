@@ -7,9 +7,16 @@ ARG version=unknown
 ARG build_date=unknown
 RUN go build -a -ldflags="-X main.VERSION=$version -X main.BUILD=$build_date" -o svsignal.bin
 
+WORKDIR /build/svsignalcopy
+
+RUN go build -a -ldflags="-X main.VERSION=$version -X main.BUILD=$build_date" -o svsignalcopy.bin
+
 FROM frolvlad/alpine-glibc
 
+LABEL version="$version"
+
 COPY --from=builder /build/svsignal.bin /app/svsignal/bin/svsignal.bin
+COPY --from=builder /build/svsignalcopy/svsignalcopy.bin /app/svsignal/bin/svsignalcopy.bin
 
 COPY etc/svsignal_prod.yaml /app/svsignal/etc/svsignal.yaml
 COPY etc/server.yaml /app/svsignal/etc/server.yaml
